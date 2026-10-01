@@ -54,17 +54,22 @@ actually needs.
 
 ### Students — the master sheet
 
-| Name | Email | Grade | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Emailed? | Parents emailed? |
+| Name | Email | Grade | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Parent confirmation sent |
 |---|---|---|---|---|---|---|---|---|---|
 
-Every student who is working. The two *Emailed?* columns are stamped
-automatically and track different things: whether the **student** was emailed,
-and whether their **parents** were.
+Every student who is working. The two stamped columns track different things:
+whether the **student** was emailed, and whether their **parents** were. Both
+fill in automatically.
 
 ### Parents — the parents who are working
 
-| Name | Email | Child(ren) | Notes | Emailed? |
-|---|---|---|---|---|
+| Name | Email | Child(ren) | Division | Notes | Email confirmation sent | Confirmed attending |
+|---|---|---|---|---|---|---|
+
+*Division* is a dropdown: **LS**, **MS**, or **LS/MS** for a parent with
+children in both. *Email confirmation sent* stamps itself when a draft is
+generated; *Confirmed attending* is a Yes / No / Maybe dropdown for you to fill
+in as replies come back.
 
 This is a deliberately different list from the parent columns on the Students
 tab:
@@ -86,13 +91,17 @@ alone and reported.
 
 ### Musicians
 
-| Name | Email | Instrument | Notes | Emailed? |
+| Name | Email | Notes | Email confirmation sent | Confirmed attending |
 |---|---|---|---|---|
 
 ### Teachers
 
-| Name | Email | Grade / subject | Notes | Emailed? |
+| Name | Email | Grade / subject | Notes | Email confirmation sent |
 |---|---|---|---|---|
+
+No *Confirmed attending* here or on Students: those two are working the event
+rather than replying to an invitation. Parents and musicians have it, because
+with them a reply is worth tracking.
 
 ### Team — the people running the event
 
@@ -116,10 +125,11 @@ and gets reminded about. *Last reminded* is stamped automatically.
 | Room | Location | Activity | Teachers | Students | Notes |
 |---|---|---|---|---|---|
 
-Put several names in the Teachers or Students cell separated by commas,
-semicolons or line breaks — `Pat Chen, Alex Rivera` all works. Names should match
-a group tab or the Team tab so the script can find email addresses; *Check for
-problems* tells you when one doesn't.
+Use **Assign people to a room…** rather than typing into this tab — see below.
+You still can type, though: several names in the Teachers or Students cell
+separated by commas, semicolons or line breaks, and `Pat Chen, Alex Rivera` all
+works. Names should match a group tab or the Team tab so the script can find
+email addresses; *Check for problems* tells you when one doesn't.
 
 ### Templates — the wording
 
@@ -130,7 +140,7 @@ one group at a time. Placeholders that get filled in:
 - `{{email}}` — their email address
 - `{{grade}}` — a student's grade, or a teacher's grade/subject
 - `{{children}}` — a parent's child or children
-- `{{instrument}}` — a musician's instrument
+- `{{division}}` — a parent's LS / MS / LS-MS division
 - `{{room}}` — the room they're assigned to on the Rooms tab (or `TBC`)
 - `{{sender}}` — your name (the script asks once and remembers it)
 
@@ -165,6 +175,11 @@ than more dropdown entries. Tick it to reach every working student's parents on
 top of whatever combination you picked. Anyone already in the selection isn't
 added twice.
 
+**Parent division** narrows to LS or MS. It applies to the **Parents** tab only,
+since that's the tab with a Division column, and a parent marked **LS/MS** is
+included by both — that's the point of the third option. Anyone with no division
+set is left in rather than quietly dropped.
+
 **Wording** decides which template to use. It defaults to *each person's own
 group wording* — so a Parents + Musicians send gives every parent the parent
 email and every musician the musician email, in one go. Or pick a single
@@ -182,6 +197,25 @@ Then three buttons:
 
 Looks each parent up against the Students tab and writes their children's names
 into the *Child(ren)* column. See the Parents tab above.
+
+### Restore the built-in wording
+
+*Set up / repair sheet* only ever **adds** missing template rows, so it never
+overwrites wording you've edited. The flip side is that it won't pull in new
+built-in wording either. This command does, and it overwrites — it asks first.
+
+### Assign people to a room…
+
+Google Sheets allows one value per cell, so a cell can't hold a multi-select
+dropdown. This dialog does that job instead: pick a room, tick the teachers and
+students who belong in it, and their names are written into that room's row on
+the Rooms tab — the same cells you could type into by hand, so everything that
+reads the Rooms tab keeps working.
+
+It opens with each room's current people already ticked, shows each student's
+grade next to their name, has a filter box for long lists, and flags anyone
+already ticked in a different room, so you spot a double-booking as you make it
+rather than at *Check for problems*.
 
 ### Email room assignments to teachers
 
@@ -207,6 +241,9 @@ own. Works whether or not the sheet is open. Turn it off from the same menu.
 Run this before you send anything. It flags:
 
 - missing names, missing or malformed email addresses
+- two people with the same name on one tab (room assignments go by name, so a
+  repeat is ambiguous), and two rooms with the same name
+- a parent with no division, or one that isn't LS / MS / LS-MS
 - anyone on two group tabs (not an error — it just tells you they'll get one email)
 - students with no grade, or no parent details at all
 - a parent with a name but no email address, or an email address but no name
@@ -228,7 +265,12 @@ Run this before you send anything. It flags:
   cap; sending does. One BCC draft is a single message no matter how many
   recipients, so it's the safe choice for a long list.
 - Reordering or renaming columns on a tab won't break anything — the script
-  reads each tab by its header row, not by column position.
+  reads each tab by its header row, not by column position. Setup adds new
+  columns in place and renames changed ones without moving their data, so
+  re-running it on a sheet you've been filling in is safe.
+- The header row of every tab is LREI red, set by `HEADER_FILL` at the top of
+  the script. Change that one value and re-run *Set up / repair sheet* to
+  recolour every header on every tab.
 - To add a group beyond the four, add it to the `GROUPS` list at the top of the
   script and add a matching row on the Templates tab, then re-run
   *Set up / repair sheet*. The dropdown rebuilds itself — five groups would give

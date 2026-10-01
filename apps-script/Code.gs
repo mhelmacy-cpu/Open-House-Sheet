@@ -4,8 +4,8 @@
  * One tab per kind of person, so each can carry the columns it actually needs:
  *
  *   Students   name, email, grade, and both parents' names and emails
- *   Parents    name, email, and which child or children they belong to
- *   Musicians  name, email, instrument
+ *   Parents    name, email, child(ren), and LS / MS / LS-MS division
+ *   Musicians  name and email
  *   Teachers   name, email, grade or subject
  *   Team       the people running the event, who can own tasks
  *   Tasks      the to-do list
@@ -29,27 +29,53 @@ var PARENTS = 'Parents';
 
 var GROUPS = ['Parent', 'Student', 'Musician', 'Teacher'];
 
+// SENT is on every group tab and is stamped by the script when a draft is
+// generated. ATTENDING is on the Parents and Musicians tabs, where a reply is
+// worth tracking, and is yours to fill in as answers come back. Students and
+// teachers don't have it: they are working the event, not replying to an
+// invitation.
+var SENT = 'Email confirmation sent';
+var ATTENDING = 'Confirmed attending';
+var PARENT_SENT = 'Parent confirmation sent';
+
+// LREI red for the header row of every tab. If the school's exact hex is
+// different, change it here and re-run "Set up / repair sheet" -- this one
+// value colours every header on every tab.
+var HEADER_FILL = '#c8102e';
+var HEADER_TEXT = '#ffffff';
+
+var DIVISIONS = ['LS', 'MS', 'LS/MS'];
+var ATTENDING_VALUES = ['Yes', 'No', 'Maybe'];
+
 /** Each group lives on its own tab, with its own columns. */
 var GROUP_TABS = {
   Parent: {
     tab: PARENTS,
-    headers: ['Name', 'Email', 'Child(ren)', 'Notes', 'Emailed?']
+    headers: ['Name', 'Email', 'Child(ren)', 'Division', 'Notes', SENT, ATTENDING]
   },
   Student: {
     tab: STUDENTS,
     headers: ['Name', 'Email', 'Grade',
       'Parent 1 name', 'Parent 2 name', 'Parent 1 email', 'Parent 2 email',
-      'Notes', 'Emailed?', 'Parents emailed?']
+      'Notes', SENT, PARENT_SENT]
   },
   Musician: {
     tab: 'Musicians',
-    headers: ['Name', 'Email', 'Instrument', 'Notes', 'Emailed?']
+    headers: ['Name', 'Email', 'Notes', SENT, ATTENDING]
   },
   Teacher: {
     tab: 'Teachers',
-    headers: ['Name', 'Email', 'Grade / subject', 'Notes', 'Emailed?']
+    headers: ['Name', 'Email', 'Grade / subject', 'Notes', SENT]
   }
 };
+
+/**
+ * Columns that used to be called something else. Setup renames them in place
+ * rather than adding a second column, so dates already stamped are kept.
+ */
+var RENAMED_COLUMNS = {};
+RENAMED_COLUMNS[SENT] = ['Emailed?'];
+RENAMED_COLUMNS[PARENT_SENT] = ['Parents emailed?'];
 
 var STATUSES = ['Not started', 'In progress', 'Blocked', 'Done'];
 
@@ -65,12 +91,12 @@ var TEMPLATE_KEYS = GROUPS.concat(['Combined']);
 // Edit it on the tab, not here -- the tab is what the drafts are built from.
 var TEMPLATE_SEED = {
   Parent: {
-    subject: "Open House - we'd love to see you",
-    body: "Hi {{name}},\n\nWe're hosting our Open House and would love to have you there.\n\nDate:\nTime:\nLocation:\n\nYour child or children working with us: {{children}}\n\nPlease let me know if you can make it.\n\nThank you,\n{{sender}}"
+    subject: 'Open House - can you help greet prospective parents?',
+    body: "Hi {{name}},\n\nWe're hosting our Open House for prospective families, and we're hoping you can take part: greeting visitors as they arrive and chatting with prospective parents about your own experience of the school.\n\nDate:\nTime:\nWhere to meet:\n\nIt's an informal role - welcoming people in, and answering the questions prospective parents always want to put to a current one. Working at the Open House from your family: {{children}}.\n\nCould you let me know whether you're able to join us?\n\nThank you,\n{{sender}}"
   },
   Student: {
-    subject: "Open House - you're invited",
-    body: "Hi {{name}},\n\nYou're invited to our Open House. Come see the work we've been doing.\n\nDate:\nTime:\nLocation:\nYour room: {{room}}\n\nSee you there,\n{{sender}}"
+    subject: 'Open House - your role on the day',
+    body: "Hi {{name}},\n\nThank you for helping at our Open House. Here is where you need to be.\n\nDate:\nTime:\nArrive by:\nYour room: {{room}}\n\nWhat you'll be doing:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
   },
   Musician: {
     subject: 'Open House - performance details',
@@ -93,8 +119,11 @@ function onOpen() {
     .createMenu('Open House')
     .addItem('Set up / repair sheet', 'setUpSheet')
     .addItem('Fill in children on the Parents tab', 'fillInChildren')
+    .addItem('Restore the built-in wording', 'restoreTemplates')
     .addSeparator()
     .addItem('Send emails...', 'showSendDialog')
+    .addSeparator()
+    .addItem('Assign people to a room...', 'showRoomDialog')
     .addItem('Email room assignments to teachers', 'emailRoomAssignments')
     .addSeparator()
     .addItem('Send task reminders now', 'sendTaskRemindersNow')
@@ -112,7 +141,8 @@ function setUpSheet() {
   var notes = [];
 
   var students = tab(ss, GROUP_TABS.Student.tab, GROUP_TABS.Student.headers);
-  widths(students, [170, 230, 70, 170, 170, 230, 230, 220, 120, 130]);
+  widths(STUDENTS, { 'Name': 170, 'Email': 230, 'Grade': 70, 'Parent 1 name': 170,
+    'Parent 2 name': 170, 'Parent 1 email': 230, 'Parent 2 email': 230, 'Notes': 220 });
   if (students.getLastRow() < 2) {
     students.getRange(2, 1, 2, 7).setValues([
       ['Sam Doe', 'sam.doe@example.com', '7', 'Jane Doe', 'Chris Doe', 'jane.doe@example.com', 'chris.doe@example.com'],
@@ -121,7 +151,9 @@ function setUpSheet() {
   }
 
   var parents = tab(ss, GROUP_TABS.Parent.tab, GROUP_TABS.Parent.headers);
-  widths(parents, [170, 230, 240, 220, 120]);
+  widths(PARENTS, { 'Name': 170, 'Email': 230, 'Child(ren)': 240, 'Division': 95, 'Notes': 220 });
+  dropdown(PARENTS, 'Division', DIVISIONS, 'Lower School, Middle School, or both');
+  attendingDropdown(PARENTS);
   if (parents.getLastRow() < 2) {
     parents.getRange(2, 1, 2, 2).setValues([
       ['Jane Doe', 'jane.doe@example.com'],
@@ -130,29 +162,34 @@ function setUpSheet() {
   }
 
   var musicians = tab(ss, GROUP_TABS.Musician.tab, GROUP_TABS.Musician.headers);
-  widths(musicians, [170, 230, 150, 220, 120]);
+  // The Instrument column is gone, but only drop it if nothing was typed in.
+  var leftover = dropEmptyColumn(GROUP_TABS.Musician.tab, 'Instrument');
+  if (leftover) notes.push(leftover);
+  widths(GROUP_TABS.Musician.tab, { 'Name': 170, 'Email': 230, 'Notes': 220 });
+  attendingDropdown(GROUP_TABS.Musician.tab);
   if (musicians.getLastRow() < 2) {
-    musicians.getRange(2, 1, 1, 3).setValues([['Alex Rivera', 'alex.rivera@example.com', 'Cello']]);
+    musicians.getRange(2, 1, 1, 2).setValues([['Alex Rivera', 'alex.rivera@example.com']]);
   }
 
   var teachers = tab(ss, GROUP_TABS.Teacher.tab, GROUP_TABS.Teacher.headers);
-  widths(teachers, [170, 230, 150, 220, 120]);
+  widths(GROUP_TABS.Teacher.tab, { 'Name': 170, 'Email': 230, 'Grade / subject': 150, 'Notes': 220 });
   if (teachers.getLastRow() < 2) {
     teachers.getRange(2, 1, 1, 3).setValues([['Pat Chen', 'pat.chen@example.com', 'Grade 4']]);
   }
 
   var team = tab(ss, TEAM, TEAM_HEADERS);
-  widths(team, [180, 240, 200]);
+  widths(TEAM, { 'Name': 180, 'Email': 240, 'Role': 200 });
   if (team.getLastRow() < 2) {
     team.getRange(2, 1, 1, 3).setValues([[me() || 'You', me() || 'you@example.com', 'Organizer']]);
   }
 
   var tasks = tab(ss, TASKS, TASK_HEADERS);
-  dropdown(tasks, 5, STATUSES, 'Pick one: ' + STATUSES.join(', '));
-  widths(tasks, [260, 300, 160, 110, 120, 140]);
-  tasks.getRange(2, 4, Math.max(tasks.getMaxRows() - 1, 1), 1).setNumberFormat('yyyy-mm-dd');
+  widths(TASKS, { 'Task': 260, 'Details': 300, 'Owner': 160, 'Due date': 110,
+    'Status': 120, 'Last reminded': 140 });
+  dropdown(TASKS, 'Status', STATUSES, 'Pick one: ' + STATUSES.join(', '));
+  numberFormat(TASKS, 'Due date', 'yyyy-mm-dd');
   var teamNames = readTab(TEAM).map(function (r) { return str(r.Name); }).filter(String);
-  if (teamNames.length) dropdown(tasks, 3, teamNames, 'Someone from the Team tab');
+  if (teamNames.length) dropdown(TASKS, 'Owner', teamNames, 'Someone from the Team tab');
   if (tasks.getLastRow() < 2) {
     tasks.getRange(2, 1, 2, 5).setValues([
       ['Book the auditorium', 'Confirm with the front office', teamNames[0] || '', '', 'Not started'],
@@ -161,8 +198,10 @@ function setUpSheet() {
   }
 
   var rooms = tab(ss, ROOMS, ROOM_HEADERS);
-  widths(rooms, [120, 160, 200, 240, 300, 220]);
-  rooms.getRange(2, 4, Math.max(rooms.getMaxRows() - 1, 1), 2).setWrap(true);
+  widths(ROOMS, { 'Room': 120, 'Location': 160, 'Activity': 200, 'Teachers': 240,
+    'Students': 300, 'Notes': 220 });
+  wrap(ROOMS, 'Teachers');
+  wrap(ROOMS, 'Students');
   if (rooms.getLastRow() < 2) {
     rooms.getRange(2, 1, 1, 6).setValues([
       ['101', 'First floor', 'Science projects', 'Pat Chen', 'Sam Doe', 'Example row - delete me']
@@ -175,8 +214,8 @@ function setUpSheet() {
   TEMPLATE_KEYS.forEach(function (key) {
     if (!have[key]) templates.appendRow([key, TEMPLATE_SEED[key].subject, TEMPLATE_SEED[key].body]);
   });
-  widths(templates, [120, 300, 520]);
-  templates.getRange(2, 3, Math.max(templates.getLastRow() - 1, 1), 1).setWrap(true);
+  widths(TEMPLATES, { 'Group': 120, 'Subject': 300, 'Body': 520 });
+  wrap(TEMPLATES, 'Body');
 
   notes = notes.concat(migrateOldRoster(ss));
 
@@ -242,21 +281,159 @@ function alreadyListed(tabName, email) {
 }
 
 function tab(ss, name, headers) {
-  var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
-  sheet.getRange(1, 1, 1, headers.length)
-    .setValues([headers]).setFontWeight('bold').setBackground('#f1f3f4');
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  } else {
+    ensureColumns(sheet, headers);
+  }
+  sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length))
+    .setFontWeight('bold')
+    .setBackground(HEADER_FILL)
+    .setFontColor(HEADER_TEXT);
   sheet.setFrozenRows(1);
   return sheet;
 }
 
-function dropdown(sheet, column, values, help) {
+/**
+ * Brings an existing tab up to date without disturbing what is already on it.
+ * A column that has been renamed is renamed in place; a genuinely new one is
+ * inserted at its proper position, which shifts the columns after it along
+ * with their data. Columns you added yourself are left where they are.
+ */
+function ensureColumns(sheet, headers) {
+  for (var i = 0; i < headers.length; i++) {
+    var width = Math.max(sheet.getLastColumn(), 1);
+    var current = sheet.getRange(1, 1, 1, width).getValues()[0].map(function (h) {
+      return String(h).trim().toLowerCase();
+    });
+    var want = headers[i].toLowerCase();
+    if (current.indexOf(want) !== -1) continue;
+
+    // Renamed rather than new? Relabel the old column and keep its contents.
+    var oldNames = RENAMED_COLUMNS[headers[i]] || [];
+    var found = -1;
+    oldNames.forEach(function (name) {
+      if (found === -1) found = current.indexOf(name.toLowerCase());
+    });
+    if (found !== -1) {
+      sheet.getRange(1, found + 1).setValue(headers[i]);
+      continue;
+    }
+
+    // Place it just after the column it is meant to follow, wherever that
+    // has ended up, rather than at its raw index -- otherwise a new last
+    // column lands in front of the one before it.
+    var after = i > 0 ? current.indexOf(headers[i - 1].toLowerCase()) + 1 : 0;
+    var position = after > 0 ? after + 1 : i + 1;
+
+    if (position > sheet.getLastColumn()) {
+      sheet.getRange(1, position).setValue(headers[i]);
+    } else {
+      sheet.insertColumnBefore(position);
+      sheet.getRange(1, position).setValue(headers[i]);
+    }
+  }
+}
+
+/**
+ * Removes a column we no longer use, but only when it is empty -- deleting
+ * one with anything in it would throw away whatever was typed there.
+ */
+function dropEmptyColumn(sheetName, header) {
+  var sheet = sheetFor(sheetName);
+  var column = columnOf(sheetName, header);
+  if (!column) return '';
+
+  var last = sheet.getLastRow();
+  if (last > 1) {
+    var used = sheet.getRange(2, column, last - 1, 1).getValues().some(function (row) {
+      return str(row[0]) !== '' && str(row[0]) !== 'Cello';
+    });
+    if (used) {
+      return 'The ' + sheetName + ' tab still has entries in its "' + header +
+        '" column, so it was left in place. Delete the column yourself once you are sure you do not need them.';
+    }
+  }
+  sheet.deleteColumn(column);
+  return '';
+}
+
+function dropdown(sheetName, header, values, help) {
+  var column = columnOf(sheetName, header);
+  if (!column) return;
+  var sheet = sheetFor(sheetName);
   var rule = SpreadsheetApp.newDataValidation()
     .requireValueInList(values, true).setAllowInvalid(false).setHelpText(help).build();
   sheet.getRange(2, column, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(rule);
 }
 
-function widths(sheet, list) {
-  for (var i = 0; i < list.length; i++) sheet.setColumnWidth(i + 1, list[i]);
+function attendingDropdown(sheetName) {
+  dropdown(sheetName, ATTENDING, ATTENDING_VALUES, 'Did they say they are coming?');
+}
+
+function widths(sheetName, byHeader) {
+  var sheet = sheetFor(sheetName);
+  Object.keys(byHeader).forEach(function (header) {
+    var column = columnOf(sheetName, header);
+    if (column) sheet.setColumnWidth(column, byHeader[header]);
+  });
+}
+
+function wrap(sheetName, header) {
+  var column = columnOf(sheetName, header);
+  if (!column) return;
+  var sheet = sheetFor(sheetName);
+  sheet.getRange(2, column, Math.max(sheet.getMaxRows() - 1, 1), 1).setWrap(true);
+}
+
+function numberFormat(sheetName, header, format) {
+  var column = columnOf(sheetName, header);
+  if (!column) return;
+  var sheet = sheetFor(sheetName);
+  sheet.getRange(2, column, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat(format);
+}
+
+/* ---------------------------------------------------------- the wording */
+
+/**
+ * "Set up / repair sheet" only adds template rows that are missing, so it
+ * never overwrites wording you have edited. This is the way to pull the
+ * built-in wording back in when it has changed -- and it does overwrite.
+ */
+function restoreTemplates() {
+  var ui = SpreadsheetApp.getUi();
+  var confirm = ui.alert('Restore the built-in wording?',
+    'Every row on the Templates tab goes back to the wording built into the script. ' +
+    'Anything you have written there yourself will be lost.',
+    ui.ButtonSet.OK_CANCEL);
+  if (confirm !== ui.Button.OK) return;
+
+  var sheet = sheetFor(TEMPLATES);
+  var subjectColumn = columnOf(TEMPLATES, 'Subject');
+  var bodyColumn = columnOf(TEMPLATES, 'Body');
+  if (!subjectColumn || !bodyColumn) {
+    alert('The Templates tab is missing its Subject or Body column. Run "Set up / repair sheet".');
+    return;
+  }
+
+  var existing = {};
+  readTab(TEMPLATES).forEach(function (r) { existing[str(r.Group)] = r._row; });
+
+  var restored = 0;
+  TEMPLATE_KEYS.forEach(function (key) {
+    if (existing[key]) {
+      sheet.getRange(existing[key], subjectColumn).setValue(TEMPLATE_SEED[key].subject);
+      sheet.getRange(existing[key], bodyColumn).setValue(TEMPLATE_SEED[key].body);
+    } else {
+      sheet.appendRow([key, TEMPLATE_SEED[key].subject, TEMPLATE_SEED[key].body]);
+    }
+    restored++;
+  });
+
+  wrap(TEMPLATES, 'Body');
+  alert(restored + ' template(s) restored. Open the Templates tab to fill in your dates and times.');
 }
 
 /* ------------------------------------------------- children on the Parents tab */
@@ -416,7 +593,7 @@ function peopleIn(groups) {
       var key = email.toLowerCase();
       if (byEmail[key]) {
         // Already listed under another group: keep one entry, remember both stamps.
-        byEmail[key].stamps.push({ tab: spec.tab, row: r._row, header: 'Emailed?' });
+        byEmail[key].stamps.push({ tab: spec.tab, row: r._row, header: SENT });
         return;
       }
 
@@ -426,8 +603,8 @@ function peopleIn(groups) {
         group: group,
         grade: str(r.Grade) || str(r['Grade / subject']),
         children: str(r['Child(ren)']),
-        instrument: str(r.Instrument),
-        stamps: [{ tab: spec.tab, row: r._row, header: 'Emailed?' }]
+        division: str(r.Division),
+        stamps: [{ tab: spec.tab, row: r._row, header: SENT }]
       };
       byEmail[key] = person;
       people.push(person);
@@ -453,7 +630,7 @@ function parentsOfStudents() {
       if (!email) return;
 
       var key = email.toLowerCase();
-      var stamp = { tab: STUDENTS, row: s._row, header: 'Parents emailed?' };
+      var stamp = { tab: STUDENTS, row: s._row, header: PARENT_SENT };
 
       if (byEmail[key]) {
         byEmail[key].stamps.push(stamp);
@@ -467,7 +644,7 @@ function parentsOfStudents() {
         group: 'Parent',
         grade: '',
         childList: child ? [child] : [],
-        instrument: '',
+        division: '',
         stamps: [stamp]
       };
       byEmail[key] = person;
@@ -494,6 +671,11 @@ function showSendDialog() {
       ' — ' + counts[i] + ' ' + (counts[i] === 1 ? 'person' : 'people') + '</option>';
   }).join('');
 
+  var divisionOptions = ['<option value="">Any division</option>']
+    .concat(DIVISIONS.map(function (d) {
+      return '<option value="' + esc(d) + '">' + esc(d) + '</option>';
+    })).join('');
+
   var wordingOptions = ['<option value="__own__">Each person’s own group wording</option>']
     .concat(readTab(TEMPLATES).map(function (t) {
       return '<option value="' + esc(t.Group) + '">' + esc(t.Group) + ' wording</option>';
@@ -515,6 +697,10 @@ function showSendDialog() {
     '<select id="groups" onchange="syncWording()">', recipientOptions, '</select>',
     '<label class="check"><input type="checkbox" id="kin"><span>Also the parents listed on the <b>Students</b> tab (' +
       studentParentCount + ') — every working student’s parents, not just the ones helping out</span></label>',
+    '<label for="division">Parent division</label>',
+    '<select id="division">', divisionOptions, '</select>',
+    '<div class="hint">Filters the <b>Parents</b> tab only, since that is the tab with a Division column. ' +
+      'A parent marked <b>LS/MS</b> is included by both LS and MS.</div>',
     '<label for="wording">Wording</label>',
     '<select id="wording">', wordingOptions, '</select>',
     '<div class="hint">A BCC draft goes to several people at once, so it always uses one shared wording.</div>',
@@ -543,7 +729,7 @@ function showSendDialog() {
     '  buttons(true);',
     '  google.script.run.withSuccessHandler(done).withFailureHandler(fail).runSend({',
     '    groups:sel("groups").value, wording:sel("wording").value,',
-    '    kin:sel("kin").checked, mode:mode });',
+    '    division:sel("division").value, kin:sel("kin").checked, mode:mode });',
     '}',
     'function done(r){',
     '  buttons(false);',
@@ -556,13 +742,23 @@ function showSendDialog() {
   ].join('');
 
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(440).setHeight(540), 'Send Open House emails');
+    HtmlService.createHtmlOutput(html).setWidth(440).setHeight(640), 'Send Open House emails');
 }
 
 /** Called from the dialog. Returns {message, addresses}. */
 function runSend(payload) {
   var groups = str(payload.groups).split('|').filter(String);
   var people = groups.length ? peopleIn(groups) : [];
+
+  // "LS/MS" means children in both, so such a parent matches either filter.
+  // Anyone with no division set is left in rather than silently dropped.
+  var division = str(payload.division);
+  if (division) {
+    people = people.filter(function (p) {
+      if (p.group !== 'Parent' || !p.division) return true;
+      return p.division === division || p.division === 'LS/MS' || division === 'LS/MS';
+    });
+  }
 
   var kin = parentsOfStudents();
 
@@ -643,6 +839,197 @@ function stampAll(person) {
     var column = columnOf(s.tab, s.header);
     if (column) sheetFor(s.tab).getRange(s.row, column).setValue(new Date());
   });
+}
+
+/* ------------------------------------------------------ the room picker */
+
+/**
+ * Google Sheets validation allows one value per cell, so a cell cannot hold a
+ * multi-select dropdown. This dialog does the job instead: pick a room, tick
+ * the teachers and students who belong in it, and their names are written into
+ * that room's row on the Rooms tab -- the same cells you could type into by
+ * hand, so everything that reads the Rooms tab keeps working.
+ */
+function showRoomDialog() {
+  var data = roomDialogData();
+  if (!data.rooms.length) {
+    alert('The Rooms tab has no rooms yet. Add a room name in the Room column first.');
+    return;
+  }
+  if (!data.students.length && !data.teachers.length) {
+    alert('There is nobody to assign yet. Add people to the Students and Teachers tabs first.');
+    return;
+  }
+
+  // JSON inlined into the page; < is escaped so it can never end the script.
+  var payload = JSON.stringify(data).replace(/</g, '\\u003c');
+
+  var html = [
+    '<style>',
+    'body{font:13px/1.5 Arial,sans-serif;margin:0;padding:14px;color:#202124}',
+    'label.top{display:block;font-weight:bold;margin:0 0 4px}',
+    'select,input[type=search]{width:100%;padding:6px;font:13px Arial;box-sizing:border-box}',
+    '.cols{display:flex;gap:14px;margin-top:14px;align-items:flex-start}',
+    '.col{flex:1 1 0;min-width:0}',
+    '.col h3{font:bold 13px Arial;margin:0 0 6px}',
+    '.list{border:1px solid #dadce0;border-radius:6px;height:230px;overflow:auto;padding:6px}',
+    '.row{display:flex;gap:6px;align-items:flex-start;padding:3px 2px}',
+    '.row label{min-width:0;word-break:break-word}',
+    '.meta{color:#5f6368}',
+    '.warn{color:#b26500}',
+    '.count{color:#5f6368;font-size:12px;margin-top:5px}',
+    '.btns{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}',
+    'button{padding:8px 14px;font:13px Arial;cursor:pointer}',
+    '#status{margin-top:12px;min-height:32px;white-space:pre-wrap}',
+    '</style>',
+    '<label class="top" for="room">Room</label>',
+    '<select id="room"></select>',
+    '<div class="cols">',
+    '<div class="col"><h3>Teachers</h3><div class="list" id="tlist"></div><div class="count" id="tcount"></div></div>',
+    '<div class="col"><h3>Students</h3>',
+    '<input type="search" id="find" placeholder="Filter students" autocomplete="off">',
+    '<div class="list" id="slist" style="margin-top:6px"></div><div class="count" id="scount"></div></div>',
+    '</div>',
+    '<div class="btns">',
+    '<button id="save" type="button">Save to this room</button>',
+    '<button id="clear" type="button">Untick all</button>',
+    '</div>',
+    '<div id="status"></div>',
+    '<script>',
+    'var DATA = ', payload, ';',
+    'var picked = {};',  // room -> {teachers:{}, students:{}}
+    'function sel(id){return document.getElementById(id);}',
+    'function roomNow(){return sel("room").value;}',
+    // Start from what each room already holds, so nothing is lost on save.
+    'DATA.rooms.forEach(function(r){',
+    '  var t={},s={};',
+    '  r.teachers.forEach(function(n){t[n]=true;});',
+    '  r.students.forEach(function(n){s[n]=true;});',
+    '  picked[r.room]={teachers:t,students:s};',
+    '});',
+    'DATA.rooms.forEach(function(r){',
+    '  var o=document.createElement("option");',
+    '  o.value=r.room;',
+    '  o.textContent=r.room+(r.location?" \u2014 "+r.location:"");',
+    '  sel("room").appendChild(o);',
+    '});',
+    // Where is this person ticked, other than the room on screen?
+    'function elsewhere(kind,name){',
+    '  var hits=[];',
+    '  Object.keys(picked).forEach(function(room){',
+    '    if(room!==roomNow() && picked[room][kind][name]) hits.push(room);',
+    '  });',
+    '  return hits;',
+    '}',
+    'function draw(kind,people,box,counter,filter){',
+    '  box.textContent="";',
+    '  var shown=0;',
+    '  people.forEach(function(p){',
+    '    if(filter && p.name.toLowerCase().indexOf(filter)===-1 &&',
+    '       (p.detail||"").toLowerCase().indexOf(filter)===-1) return;',
+    '    shown++;',
+    '    var row=document.createElement("div"); row.className="row";',
+    '    var cb=document.createElement("input");',
+    '    cb.type="checkbox"; cb.id=kind+"-"+shown;',
+    '    cb.checked=!!picked[roomNow()][kind][p.name];',
+    '    cb.addEventListener("change",function(){',
+    '      if(cb.checked) picked[roomNow()][kind][p.name]=true;',
+    '      else delete picked[roomNow()][kind][p.name];',
+    '      render();',
+    '    });',
+    '    var lab=document.createElement("label");',
+    '    lab.htmlFor=cb.id;',
+    '    lab.appendChild(document.createTextNode(p.name));',
+    '    if(p.detail){',
+    '      var m=document.createElement("span"); m.className="meta";',
+    '      m.textContent=" \u00b7 "+p.detail; lab.appendChild(m);',
+    '    }',
+    '    var other=elsewhere(kind,p.name);',
+    '    if(other.length){',
+    '      var w=document.createElement("span"); w.className="warn";',
+    '      w.textContent=" \u00b7 also in "+other.join(", "); lab.appendChild(w);',
+    '    }',
+    '    row.appendChild(cb); row.appendChild(lab); box.appendChild(row);',
+    '  });',
+    '  var n=Object.keys(picked[roomNow()][kind]).length;',
+    '  counter.textContent=n+" ticked"+(shown<people.length?" \u00b7 "+shown+" of "+people.length+" shown":"");',
+    '}',
+    'function render(){',
+    '  draw("teachers",DATA.teachers,sel("tlist"),sel("tcount"),"");',
+    '  draw("students",DATA.students,sel("slist"),sel("scount"),sel("find").value.trim().toLowerCase());',
+    '}',
+    'sel("room").addEventListener("change",function(){ sel("status").textContent=""; render(); });',
+    'sel("find").addEventListener("input",render);',
+    'sel("clear").addEventListener("click",function(){',
+    '  picked[roomNow()]={teachers:{},students:{}}; render();',
+    '});',
+    'sel("save").addEventListener("click",function(){',
+    '  var room=roomNow();',
+    '  sel("status").textContent="Saving\u2026";',
+    '  sel("save").disabled=true;',
+    '  google.script.run.withSuccessHandler(function(message){',
+    '    sel("save").disabled=false; sel("status").textContent=message;',
+    '  }).withFailureHandler(function(e){',
+    '    sel("save").disabled=false; sel("status").textContent="Error: "+e.message;',
+    '  }).saveRoomAssignment({ room: room,',
+    '    teachers: Object.keys(picked[room].teachers),',
+    '    students: Object.keys(picked[room].students) });',
+    '});',
+    'render();',
+    '<\/script>'
+  ].join('');
+
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(html).setWidth(620).setHeight(560), 'Assign people to a room');
+}
+
+/** Rooms, plus everyone who could be put in one. */
+function roomDialogData() {
+  return {
+    rooms: readTab(ROOMS).filter(function (r) { return str(r.Room); }).map(function (r) {
+      return {
+        room: str(r.Room),
+        location: str(r.Location),
+        teachers: namesIn(r.Teachers),
+        students: namesIn(r.Students)
+      };
+    }),
+    teachers: readTab(GROUP_TABS.Teacher.tab).filter(function (r) { return str(r.Name); })
+      .map(function (r) { return { name: str(r.Name), detail: str(r['Grade / subject']) }; }),
+    students: readTab(STUDENTS).filter(function (r) { return str(r.Name); })
+      .map(function (r) {
+        return { name: str(r.Name), detail: str(r.Grade) ? 'Grade ' + str(r.Grade) : '' };
+      })
+  };
+}
+
+/** Called from the dialog: writes one room's people into its row. */
+function saveRoomAssignment(payload) {
+  var room = str(payload.room);
+  if (!room) return 'No room given.';
+
+  var match = null;
+  readTab(ROOMS).forEach(function (r) {
+    if (!match && str(r.Room).toLowerCase() === room.toLowerCase()) match = r;
+  });
+  if (!match) return 'Room "' + room + '" is no longer on the Rooms tab.';
+
+  var sheet = sheetFor(ROOMS);
+  var teacherColumn = columnOf(ROOMS, 'Teachers');
+  var studentColumn = columnOf(ROOMS, 'Students');
+  if (!teacherColumn || !studentColumn) {
+    return 'The Rooms tab is missing its Teachers or Students column. Run "Set up / repair sheet".';
+  }
+
+  var teachers = (payload.teachers || []).map(str).filter(String);
+  var students = (payload.students || []).map(str).filter(String);
+  sheet.getRange(match._row, teacherColumn).setValue(teachers.join(', '));
+  sheet.getRange(match._row, studentColumn).setValue(students.join(', '));
+
+  return 'Room ' + room + ' saved: ' +
+    teachers.length + ' teacher' + (teachers.length === 1 ? '' : 's') + ' and ' +
+    students.length + ' student' + (students.length === 1 ? '' : 's') + '.' +
+    '\n\nPick another room to carry on, or close this window.';
 }
 
 /* ------------------------------------------------------- room assignments */
@@ -930,6 +1317,23 @@ function checkForProblems() {
     });
   });
 
+  // Rooms are matched to people by name, so a repeated name is ambiguous.
+  GROUPS.forEach(function (group) {
+    var spec = GROUP_TABS[group];
+    var byName = {};
+    readTab(spec.tab).forEach(function (r) {
+      var name = str(r.Name);
+      if (!name) return;
+      var key = name.toLowerCase();
+      if (byName[key]) {
+        problems.push(spec.tab + ' row ' + r._row + ': "' + name + '" is also on row ' +
+          byName[key] + '. Room assignments go by name, so add a middle initial to tell them apart.');
+      } else {
+        byName[key] = r._row;
+      }
+    });
+  });
+
   // Students: grade, and the parent columns.
   readTab(STUDENTS).forEach(function (s) {
     var at = STUDENTS + ' row ' + s._row + ': ';
@@ -971,6 +1375,11 @@ function checkForProblems() {
     if (!str(p['Child(ren)'])) {
       problems.push(at + 'no child listed. Run "Fill in children on the Parents tab".');
     }
+    var division = str(p.Division);
+    if (!division) problems.push(at + 'no division, so the LS / MS filter will always include them.');
+    else if (DIVISIONS.indexOf(division) === -1) {
+      problems.push(at + 'division "' + division + '" is not one of ' + DIVISIONS.join(', ') + '.');
+    }
   });
 
   // Team
@@ -996,10 +1405,17 @@ function checkForProblems() {
 
   // Rooms, and anyone booked into two at once.
   var placed = {};
+  var roomNames = {};
   readTab(ROOMS).forEach(function (r) {
     var at = ROOMS + ' row ' + r._row + ': ';
     var room = str(r.Room);
     if (!room) { problems.push(at + 'no room name.'); return; }
+    if (roomNames[room.toLowerCase()]) {
+      problems.push(at + 'room "' + room + '" is also on row ' + roomNames[room.toLowerCase()] +
+        '. The room picker can only write to the first one.');
+    } else {
+      roomNames[room.toLowerCase()] = r._row;
+    }
     if (!namesIn(r.Teachers).length) problems.push(at + 'room ' + room + ' has no teacher.');
 
     namesIn(r.Teachers).concat(namesIn(r.Students)).forEach(function (name) {
@@ -1044,7 +1460,7 @@ function fill(text, person, sender) {
     .replace(/\{\{\s*email\s*\}\}/gi, person.email || '')
     .replace(/\{\{\s*grade\s*\}\}/gi, person.grade || '')
     .replace(/\{\{\s*children\s*\}\}/gi, person.children || 'your child')
-    .replace(/\{\{\s*instrument\s*\}\}/gi, person.instrument || '')
+    .replace(/\{\{\s*division\s*\}\}/gi, person.division || '')
     .replace(/\{\{\s*room\s*\}\}/gi, person.room || 'TBC')
     .replace(/\{\{\s*sender\s*\}\}/gi, sender || '');
 }
