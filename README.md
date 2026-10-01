@@ -29,6 +29,15 @@ yourself rather than installed from their store.
 > That's what refreshes the owner dropdown on the Tasks tab. It never overwrites
 > rows you've already filled in.
 
+### Coming from the earlier single-tab version?
+
+If your sheet still has one **Roster** tab with a *Group* column, setup moves
+those rows onto the new Students, Parents, Musicians and Teachers tabs for you,
+matching on the group name, and skipping anyone already listed. It renames the
+old tab *Roster (old)* rather than deleting it, so you can check nothing was
+lost before you remove it. Students that move across will need their grade and
+parent details filled in, since the old tab had nowhere to keep them.
+
 ## Drafts vs. sent — the one thing to know
 
 The script deliberately does two different things:
@@ -38,22 +47,62 @@ The script deliberately does two different things:
 | **Open House emails** (parents, students, musicians, teachers) and **room assignments** | Become **Gmail drafts**. You read each one and press Send yourself. |
 | **Task reminders** to your own team | **Send immediately** — that's the point of a reminder, and the optional daily run happens while you're away from the computer. |
 
-## The five tabs
+## The seven tabs
 
-**Roster** — everyone you might email.
+Each kind of person gets their own tab, so each can carry the columns it
+actually needs.
 
-| Name | Email | Group | Notes | Emailed? |
+### Students — the master sheet
+
+| Name | Email | Grade | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Emailed? | Parents emailed? |
+|---|---|---|---|---|---|---|---|---|---|
+
+Every student who is working. The two *Emailed?* columns are stamped
+automatically and track different things: whether the **student** was emailed,
+and whether their **parents** were.
+
+### Parents — the parents who are working
+
+| Name | Email | Child(ren) | Notes | Emailed? |
 |---|---|---|---|---|
 
-*Group* is a dropdown: Parent, Student, Musician, Teacher. *Emailed?* is stamped
-with the date automatically whenever a draft is generated for that person.
+This is a deliberately different list from the parent columns on the Students
+tab:
 
-**Team** — the people running the event, who can own tasks.
+- **Parents tab** = parents who are *working* the open house
+- **Parent 1 / Parent 2 on Students** = every working student's parents, whether
+  they're helping or not
+
+So a parent helping out appears on both, and a parent who is just a contact for
+their child appears only on Students. The send dialog can reach either list, or
+both at once.
+
+**Fill in children on the Parents tab** looks each parent up against the
+Students tab and writes their children's names into the *Child(ren)* column.
+It matches on email first, then name, so two parents with the same name don't
+get confused. It writes plain text rather than a formula, so it survives column
+edits and you can still type a name in by hand — anything it can't match is left
+alone and reported.
+
+### Musicians
+
+| Name | Email | Instrument | Notes | Emailed? |
+|---|---|---|---|---|
+
+### Teachers
+
+| Name | Email | Grade / subject | Notes | Emailed? |
+|---|---|---|---|---|
+
+### Team — the people running the event
 
 | Name | Email | Role |
 |---|---|---|
 
-**Tasks** — your to-do list.
+Separate from the four groups above, because the people organising aren't
+necessarily on any of them. This tab feeds the owner dropdown on Tasks.
+
+### Tasks — the to-do list
 
 | Task | Details | Owner | Due date | Status | Last reminded |
 |---|---|---|---|---|---|
@@ -62,23 +111,26 @@ with the date automatically whenever a draft is generated for that person.
 started, In progress, Blocked, Done. Anything not marked **Done** counts as open
 and gets reminded about. *Last reminded* is stamped automatically.
 
-**Rooms** — the classrooms in use.
+### Rooms — the classrooms in use
 
 | Room | Location | Activity | Teachers | Students | Notes |
 |---|---|---|---|---|---|
 
-Put several names in the Teachers or Students cell separated by commas, semicolons
-or line breaks — `Pat Chen, Alex Rivera` all works. Names should match the Roster
-or Team tab so the script can find email addresses; *Check for problems* tells you
-when one doesn't.
+Put several names in the Teachers or Students cell separated by commas,
+semicolons or line breaks — `Pat Chen, Alex Rivera` all works. Names should match
+a group tab or the Team tab so the script can find email addresses; *Check for
+problems* tells you when one doesn't.
 
-**Templates** — the wording, one row per group plus a **Combined** row used when
-one email goes to more than one group at a time.
+### Templates — the wording
 
-Four placeholders get filled in:
+One row per group, plus a **Combined** row used when one email goes to more than
+one group at a time. Placeholders that get filled in:
 
 - `{{name}}` — that person's name
 - `{{email}}` — their email address
+- `{{grade}}` — a student's grade, or a teacher's grade/subject
+- `{{children}}` — a parent's child or children
+- `{{instrument}}` — a musician's instrument
 - `{{room}}` — the room they're assigned to on the Rooms tab (or `TBC`)
 - `{{sender}}` — your name (the script asks once and remembers it)
 
@@ -104,7 +156,14 @@ Students + Teachers
 Musicians + Teachers
 ```
 
-Anyone in two groups is counted and emailed once, not twice.
+Anyone on two tabs — a student who is also a musician, say — is counted and
+emailed once, not twice.
+
+Under it, a checkbox: **also the parents listed on the Students tab**. That's
+a separate list from the Parents tab — see above — so it's a checkbox rather
+than more dropdown entries. Tick it to reach every working student's parents on
+top of whatever combination you picked. Anyone already in the selection isn't
+added twice.
 
 **Wording** decides which template to use. It defaults to *each person's own
 group wording* — so a Parents + Musicians send gives every parent the parent
@@ -118,6 +177,11 @@ Then three buttons:
   nobody sees anyone else's address. Being one message to many people, it always
   uses one shared wording (the **Combined** row if you left the default).
 - **Just show addresses** — the addresses as a comma-separated list to copy
+
+### Fill in children on the Parents tab
+
+Looks each parent up against the Students tab and writes their children's names
+into the *Child(ren)* column. See the Parents tab above.
 
 ### Email room assignments to teachers
 
@@ -142,12 +206,18 @@ own. Works whether or not the sheet is open. Turn it off from the same menu.
 
 Run this before you send anything. It flags:
 
-- missing names, missing or malformed email addresses, duplicate addresses
-- groups and statuses that aren't one of the allowed values
+- missing names, missing or malformed email addresses
+- anyone on two group tabs (not an error — it just tells you they'll get one email)
+- students with no grade, or no parent details at all
+- a parent with a name but no email address, or an email address but no name
+- **a parent whose email on the Parents tab disagrees with the Students tab**
+- a parent on the Parents tab who isn't named as a parent of any working student
+- parents with no child filled in yet
+- statuses that aren't one of the allowed values
 - tasks with no owner, or an owner with no email address anywhere
 - due dates that are text rather than real dates
 - rooms with no teacher
-- people on the Rooms tab who aren't on the Roster or Team tab
+- people on the Rooms tab who aren't on any group tab or the Team tab
 - **anyone booked into two rooms at once**
 - missing template rows
 
