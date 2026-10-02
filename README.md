@@ -29,6 +29,17 @@ yourself rather than installed from their store.
 > That's what refreshes the owner dropdown on the Tasks tab. It never overwrites
 > rows you've already filled in.
 
+### Already have names in one column?
+
+Setup splits them for you. The old **Name** column on Students and Musicians
+becomes **First name**, a **Last name** column is added beside it, and each
+surname moves across — at the *first* space, so a two-word surname like
+`Van Der Berg` stays whole. A one-word entry is left alone, and a row where
+you've already typed a last name is never touched. Setup reports how many it
+split, because a two-word *given* name goes the other way: `Mary Jo Smith`
+becomes `Mary` / `Jo Smith`. Worth a glance down those two columns afterwards.
+Re-running setup won't split anything twice.
+
 ### Coming from the earlier single-tab version?
 
 If your sheet still has one **Roster** tab with a *Group* column, setup moves
@@ -54,12 +65,17 @@ actually needs.
 
 ### Students — the master sheet
 
-| Name | Email | Grade | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Parent confirmation sent |
-|---|---|---|---|---|---|---|---|---|---|
+| First name | Last name | Email | Grade | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Parent confirmation sent |
+|---|---|---|---|---|---|---|---|---|---|---|
 
-Every student who is working. The two stamped columns track different things:
+Every student who is working. The name is split in two so the tab sorts by
+surname; the parent name columns stay single. The two stamped columns track different things:
 whether the **student** was emailed, and whether their **parents** were. Both
 fill in automatically.
+
+Names on the Parents, Teachers and Team tabs stay in a single **Name** column.
+Everything that matches people by name — room assignments, task owners, the
+Rooms tab — reads either shape, so the two kinds of tab mix freely.
 
 ### Parents — the parents who are working
 
@@ -91,8 +107,8 @@ alone and reported.
 
 ### Musicians
 
-| Name | Email | Notes | Email confirmation sent | Confirmed attending |
-|---|---|---|---|---|
+| First name | Last name | Email | Notes | Email confirmation sent | Confirmed attending |
+|---|---|---|---|---|---|
 
 ### Teachers
 
@@ -136,7 +152,9 @@ email addresses; *Check for problems* tells you when one doesn't.
 One row per group, plus a **Combined** row used when one email goes to more than
 one group at a time. Placeholders that get filled in:
 
-- `{{name}}` — that person's name
+- `{{name}}` — that person's full name
+- `{{firstname}}` — their given name alone, which is what the built-in wording
+  greets them with, so an email opens "Hi Sam," rather than "Hi Sam Doe,"
 - `{{email}}` — their email address
 - `{{grade}}` — a student's grade, or a teacher's grade/subject
 - `{{children}}` — a parent's child or children

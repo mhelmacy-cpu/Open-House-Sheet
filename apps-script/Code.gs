@@ -44,6 +44,13 @@ var PARENT_SENT = 'Parent confirmation sent';
 var HEADER_FILL = '#c8102e';
 var HEADER_TEXT = '#ffffff';
 
+// Students and musicians are listed with their names in two columns, so the
+// tabs sort by surname. Parents and teachers keep one column, and so do the
+// Parent 1 / Parent 2 columns on the Students tab.
+var NAME = 'Name';
+var FIRST = 'First name';
+var LAST = 'Last name';
+
 var DIVISIONS = ['LS', 'MS', 'LS/MS'];
 var ATTENDING_VALUES = ['Yes', 'No', 'Maybe'];
 
@@ -51,21 +58,21 @@ var ATTENDING_VALUES = ['Yes', 'No', 'Maybe'];
 var GROUP_TABS = {
   Parent: {
     tab: PARENTS,
-    headers: ['Name', 'Email', 'Child(ren)', 'Division', 'Notes', SENT, ATTENDING]
+    headers: [NAME, 'Email', 'Child(ren)', 'Division', 'Notes', SENT, ATTENDING]
   },
   Student: {
     tab: STUDENTS,
-    headers: ['Name', 'Email', 'Grade',
+    headers: [FIRST, LAST, 'Email', 'Grade',
       'Parent 1 name', 'Parent 2 name', 'Parent 1 email', 'Parent 2 email',
       'Notes', SENT, PARENT_SENT]
   },
   Musician: {
     tab: 'Musicians',
-    headers: ['Name', 'Email', 'Notes', SENT, ATTENDING]
+    headers: [FIRST, LAST, 'Email', 'Notes', SENT, ATTENDING]
   },
   Teacher: {
     tab: 'Teachers',
-    headers: ['Name', 'Email', 'Grade / subject', 'Notes', SENT]
+    headers: [NAME, 'Email', 'Grade / subject', 'Notes', SENT]
   }
 };
 
@@ -76,10 +83,14 @@ var GROUP_TABS = {
 var RENAMED_COLUMNS = {};
 RENAMED_COLUMNS[SENT] = ['Emailed?'];
 RENAMED_COLUMNS[PARENT_SENT] = ['Parents emailed?'];
+// On the two tabs that now split the name, the old single column becomes the
+// first-name column and keeps whatever is in it; splitFullNames then moves
+// each surname across.
+RENAMED_COLUMNS[FIRST] = [NAME];
 
 var STATUSES = ['Not started', 'In progress', 'Blocked', 'Done'];
 
-var TEAM_HEADERS = ['Name', 'Email', 'Role'];
+var TEAM_HEADERS = [NAME, 'Email', 'Role'];
 var TASK_HEADERS = ['Task', 'Details', 'Owner', 'Due date', 'Status', 'Last reminded'];
 var ROOM_HEADERS = ['Room', 'Location', 'Activity', 'Teachers', 'Students', 'Notes'];
 var TEMPLATE_HEADERS = ['Group', 'Subject', 'Body'];
@@ -92,23 +103,23 @@ var TEMPLATE_KEYS = GROUPS.concat(['Combined']);
 var TEMPLATE_SEED = {
   Parent: {
     subject: 'Open House - can you help greet prospective parents?',
-    body: "Hi {{name}},\n\nWe're hosting our Open House for prospective families, and we're hoping you can take part: greeting visitors as they arrive and chatting with prospective parents about your own experience of the school.\n\nDate:\nTime:\nWhere to meet:\n\nIt's an informal role - welcoming people in, and answering the questions prospective parents always want to put to a current one. Working at the Open House from your family: {{children}}.\n\nCould you let me know whether you're able to join us?\n\nThank you,\n{{sender}}"
+    body: "Hi {{firstname}},\n\nWe're hosting our Open House for prospective families, and we're hoping you can take part: greeting visitors as they arrive and chatting with prospective parents about your own experience of the school.\n\nDate:\nTime:\nWhere to meet:\n\nIt's an informal role - welcoming people in, and answering the questions prospective parents always want to put to a current one. Working at the Open House from your family: {{children}}.\n\nCould you let me know whether you're able to join us?\n\nThank you,\n{{sender}}"
   },
   Student: {
     subject: 'Open House - your role on the day',
-    body: "Hi {{name}},\n\nThank you for helping at our Open House. Here is where you need to be.\n\nDate:\nTime:\nArrive by:\nYour room: {{room}}\n\nWhat you'll be doing:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
+    body: "Hi {{firstname}},\n\nThank you for helping at our Open House. Here is where you need to be.\n\nDate:\nTime:\nArrive by:\nYour room: {{room}}\n\nWhat you'll be doing:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
   },
   Musician: {
     subject: 'Open House - performance details',
-    body: "Hi {{name}},\n\nThank you for playing at our Open House. Here are the details:\n\nDate:\nTime:\nCall time:\nLocation:\nWhat to bring:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
+    body: "Hi {{firstname}},\n\nThank you for playing at our Open House. Here are the details:\n\nDate:\nTime:\nCall time:\nLocation:\nWhat to bring:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
   },
   Teacher: {
     subject: 'Open House - setup and staffing',
-    body: "Hi {{name}},\n\nHere are the Open House details and what we need from you:\n\nDate:\nTime:\nYour room: {{room}}\nSetup time:\n\nThanks for pitching in.\n\n{{sender}}"
+    body: "Hi {{firstname}},\n\nHere are the Open House details and what we need from you:\n\nDate:\nTime:\nYour room: {{room}}\nSetup time:\n\nThanks for pitching in.\n\n{{sender}}"
   },
   Combined: {
     subject: 'Open House - details',
-    body: "Hi {{name}},\n\nHere are the details for our Open House.\n\nDate:\nTime:\nLocation:\n\nWe hope to see you there.\n\nThank you,\n{{sender}}"
+    body: "Hi {{firstname}},\n\nHere are the details for our Open House.\n\nDate:\nTime:\nLocation:\n\nWe hope to see you there.\n\nThank you,\n{{sender}}"
   }
 };
 
@@ -141,17 +152,20 @@ function setUpSheet() {
   var notes = [];
 
   var students = tab(ss, GROUP_TABS.Student.tab, GROUP_TABS.Student.headers);
-  widths(STUDENTS, { 'Name': 170, 'Email': 230, 'Grade': 70, 'Parent 1 name': 170,
-    'Parent 2 name': 170, 'Parent 1 email': 230, 'Parent 2 email': 230, 'Notes': 220 });
+  var studentsSplit = splitFullNames(STUDENTS);
+  widths(STUDENTS, [[FIRST, 140], [LAST, 140], ['Email', 230], ['Grade', 70],
+    ['Parent 1 name', 170], ['Parent 2 name', 170],
+    ['Parent 1 email', 230], ['Parent 2 email', 230], ['Notes', 220]]);
   if (students.getLastRow() < 2) {
-    students.getRange(2, 1, 2, 7).setValues([
-      ['Sam Doe', 'sam.doe@example.com', '7', 'Jane Doe', 'Chris Doe', 'jane.doe@example.com', 'chris.doe@example.com'],
-      ['Alex Rivera', 'alex.rivera@example.com', '9', 'Mia Rivera', '', 'mia.rivera@example.com', '']
+    students.getRange(2, 1, 2, 8).setValues([
+      ['Sam', 'Doe', 'sam.doe@example.com', '7', 'Jane Doe', 'Chris Doe', 'jane.doe@example.com', 'chris.doe@example.com'],
+      ['Alex', 'Rivera', 'alex.rivera@example.com', '9', 'Mia Rivera', '', 'mia.rivera@example.com', '']
     ]);
   }
 
   var parents = tab(ss, GROUP_TABS.Parent.tab, GROUP_TABS.Parent.headers);
-  widths(PARENTS, { 'Name': 170, 'Email': 230, 'Child(ren)': 240, 'Division': 95, 'Notes': 220 });
+  widths(PARENTS, [[NAME, 170], ['Email', 230], ['Child(ren)', 240],
+    ['Division', 95], ['Notes', 220]]);
   dropdown(PARENTS, 'Division', DIVISIONS, 'Lower School, Middle School, or both');
   attendingDropdown(PARENTS);
   if (parents.getLastRow() < 2) {
@@ -165,30 +179,32 @@ function setUpSheet() {
   // The Instrument column is gone, but only drop it if nothing was typed in.
   var leftover = dropEmptyColumn(GROUP_TABS.Musician.tab, 'Instrument');
   if (leftover) notes.push(leftover);
-  widths(GROUP_TABS.Musician.tab, { 'Name': 170, 'Email': 230, 'Notes': 220 });
+  var musiciansSplit = splitFullNames(GROUP_TABS.Musician.tab);
+  widths(GROUP_TABS.Musician.tab, [[FIRST, 140], [LAST, 140], ['Email', 230], ['Notes', 220]]);
   attendingDropdown(GROUP_TABS.Musician.tab);
   if (musicians.getLastRow() < 2) {
-    musicians.getRange(2, 1, 1, 2).setValues([['Alex Rivera', 'alex.rivera@example.com']]);
+    musicians.getRange(2, 1, 1, 3).setValues([['Alex', 'Rivera', 'alex.rivera@example.com']]);
   }
 
   var teachers = tab(ss, GROUP_TABS.Teacher.tab, GROUP_TABS.Teacher.headers);
-  widths(GROUP_TABS.Teacher.tab, { 'Name': 170, 'Email': 230, 'Grade / subject': 150, 'Notes': 220 });
+  widths(GROUP_TABS.Teacher.tab, [[NAME, 170], ['Email', 230],
+    ['Grade / subject', 150], ['Notes', 220]]);
   if (teachers.getLastRow() < 2) {
     teachers.getRange(2, 1, 1, 3).setValues([['Pat Chen', 'pat.chen@example.com', 'Grade 4']]);
   }
 
   var team = tab(ss, TEAM, TEAM_HEADERS);
-  widths(TEAM, { 'Name': 180, 'Email': 240, 'Role': 200 });
+  widths(TEAM, [[NAME, 180], ['Email', 240], ['Role', 200]]);
   if (team.getLastRow() < 2) {
     team.getRange(2, 1, 1, 3).setValues([[me() || 'You', me() || 'you@example.com', 'Organizer']]);
   }
 
   var tasks = tab(ss, TASKS, TASK_HEADERS);
-  widths(TASKS, { 'Task': 260, 'Details': 300, 'Owner': 160, 'Due date': 110,
-    'Status': 120, 'Last reminded': 140 });
+  widths(TASKS, [['Task', 260], ['Details', 300], ['Owner', 160],
+    ['Due date', 110], ['Status', 120], ['Last reminded', 140]]);
   dropdown(TASKS, 'Status', STATUSES, 'Pick one: ' + STATUSES.join(', '));
   numberFormat(TASKS, 'Due date', 'yyyy-mm-dd');
-  var teamNames = readTab(TEAM).map(function (r) { return str(r.Name); }).filter(String);
+  var teamNames = readTab(TEAM).map(personName).filter(String);
   if (teamNames.length) dropdown(TASKS, 'Owner', teamNames, 'Someone from the Team tab');
   if (tasks.getLastRow() < 2) {
     tasks.getRange(2, 1, 2, 5).setValues([
@@ -198,8 +214,8 @@ function setUpSheet() {
   }
 
   var rooms = tab(ss, ROOMS, ROOM_HEADERS);
-  widths(ROOMS, { 'Room': 120, 'Location': 160, 'Activity': 200, 'Teachers': 240,
-    'Students': 300, 'Notes': 220 });
+  widths(ROOMS, [['Room', 120], ['Location', 160], ['Activity', 200],
+    ['Teachers', 240], ['Students', 300], ['Notes', 220]]);
   wrap(ROOMS, 'Teachers');
   wrap(ROOMS, 'Students');
   if (rooms.getLastRow() < 2) {
@@ -214,8 +230,15 @@ function setUpSheet() {
   TEMPLATE_KEYS.forEach(function (key) {
     if (!have[key]) templates.appendRow([key, TEMPLATE_SEED[key].subject, TEMPLATE_SEED[key].body]);
   });
-  widths(TEMPLATES, { 'Group': 120, 'Subject': 300, 'Body': 520 });
+  widths(TEMPLATES, [['Group', 120], ['Subject', 300], ['Body', 520]]);
   wrap(TEMPLATES, 'Body');
+
+  var nameSplit = (studentsSplit || 0) + (musiciansSplit || 0);
+  if (nameSplit) {
+    notes.push('Split ' + nameSplit + ' full name(s) on the Students and Musicians tabs into ' +
+      'First name and Last name. The split happens at the first space, so a two-word surname ' +
+      'stays whole but a two-word given name does not -- worth a quick look down those columns.');
+  }
 
   notes = notes.concat(migrateOldRoster(ss));
 
@@ -254,12 +277,25 @@ function migrateOldRoster(ss) {
     var sheet = ss.getSheetByName(spec.tab);
     if (alreadyListed(spec.tab, str(r.Email))) return;
 
-    // Name and Email are column 1 and 2 on every group tab; Notes carries over
-    // by header so it lands correctly whatever that tab's shape.
-    sheet.appendRow([str(r.Name), str(r.Email)]);
+    // Written by header, not by position: the name is one column on some tabs
+    // and two on others, so column 2 is not always the email address.
+    sheet.appendRow([]);
+    var row = sheet.getLastRow();
+    var whole = str(r.Name);
+    if (columnOf(spec.tab, NAME)) {
+      sheet.getRange(row, columnOf(spec.tab, NAME)).setValue(whole);
+    } else {
+      var gap = whole.indexOf(' ');
+      sheet.getRange(row, columnOf(spec.tab, FIRST))
+        .setValue(gap === -1 ? whole : whole.slice(0, gap));
+      if (gap !== -1) {
+        sheet.getRange(row, columnOf(spec.tab, LAST)).setValue(whole.slice(gap + 1).trim());
+      }
+    }
+    sheet.getRange(row, columnOf(spec.tab, 'Email')).setValue(str(r.Email));
     var notesColumn = columnOf(spec.tab, 'Notes');
     if (notesColumn && str(r.Notes)) {
-      sheet.getRange(sheet.getLastRow(), notesColumn).setValue(str(r.Notes));
+      sheet.getRange(row, notesColumn).setValue(str(r.Notes));
     }
     moved++;
   });
@@ -373,11 +409,11 @@ function attendingDropdown(sheetName) {
   dropdown(sheetName, ATTENDING, ATTENDING_VALUES, 'Did they say they are coming?');
 }
 
-function widths(sheetName, byHeader) {
+function widths(sheetName, pairs) {
   var sheet = sheetFor(sheetName);
-  Object.keys(byHeader).forEach(function (header) {
-    var column = columnOf(sheetName, header);
-    if (column) sheet.setColumnWidth(column, byHeader[header]);
+  pairs.forEach(function (pair) {
+    var column = columnOf(sheetName, pair[0]);
+    if (column) sheet.setColumnWidth(column, pair[1]);
   });
 }
 
@@ -454,7 +490,7 @@ function fillInChildren() {
   var byParentName = {};
   var byParentEmail = {};
   readTab(STUDENTS).forEach(function (s) {
-    var child = str(s.Name);
+    var child = personName(s);
     if (!child) return;
     [['Parent 1 name', 'Parent 1 email'], ['Parent 2 name', 'Parent 2 email']].forEach(function (pair) {
       var name = str(s[pair[0]]);
@@ -467,7 +503,7 @@ function fillInChildren() {
   var filled = 0;
   var noMatch = [];
   readTab(PARENTS).forEach(function (p) {
-    var name = str(p.Name);
+    var name = personName(p);
     if (!name) return;
 
     // Match on email first -- two parents can share a name, not an address.
@@ -524,6 +560,65 @@ function sheetFor(name) {
 
 function str(value) {
   return value === null || value === undefined ? '' : String(value).trim();
+}
+
+/**
+ * A person's full name, whichever shape their tab uses: one Name column, or
+ * First name and Last name. Everything that matches people by name -- room
+ * assignments, task owners, the Rooms tab -- goes through this.
+ */
+function personName(row) {
+  var single = str(row[NAME]);
+  if (single) return single;
+  return [str(row[FIRST]), str(row[LAST])].filter(String).join(' ');
+}
+
+/** The first word of a full name, for greeting someone by it. */
+function givenName(whole) {
+  return str(whole).split(/\s+/)[0] || str(whole);
+}
+
+/** Just the given name, for greeting someone as "Hi Sam," not "Hi Sam Doe,". */
+function personFirstName(row) {
+  var first = str(row[FIRST]);
+  if (first) return first;
+  return str(row[NAME]).split(/\s+/)[0] || '';
+}
+
+/**
+ * On a tab that used to keep one Name column, moves each surname into the new
+ * Last name column. Splits at the first space, so a two-word surname stays
+ * whole; a one-word entry is left alone, and a row where a last name has
+ * already been typed is never touched.
+ */
+function splitFullNames(sheetName) {
+  var firstColumn = columnOf(sheetName, FIRST);
+  var lastColumn = columnOf(sheetName, LAST);
+  if (!firstColumn || !lastColumn) return 0;
+
+  var sheet = sheetFor(sheetName);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var firsts = sheet.getRange(2, firstColumn, lastRow - 1, 1).getValues();
+  var lasts = sheet.getRange(2, lastColumn, lastRow - 1, 1).getValues();
+  var split = 0;
+
+  for (var i = 0; i < firsts.length; i++) {
+    var whole = str(firsts[i][0]);
+    if (!whole || str(lasts[i][0])) continue;
+    var gap = whole.indexOf(' ');
+    if (gap === -1) continue;
+    firsts[i][0] = whole.slice(0, gap);
+    lasts[i][0] = whole.slice(gap + 1).trim();
+    split++;
+  }
+
+  if (split) {
+    sheet.getRange(2, firstColumn, firsts.length, 1).setValues(firsts);
+    sheet.getRange(2, lastColumn, lasts.length, 1).setValues(lasts);
+  }
+  return split;
 }
 
 /** Finds a column by its header, so reordering columns doesn't misplace writes. */
@@ -598,7 +693,8 @@ function peopleIn(groups) {
       }
 
       var person = {
-        name: str(r.Name) || 'there',
+        name: personName(r) || 'there',
+        first: personFirstName(r) || 'there',
         email: email,
         group: group,
         grade: str(r.Grade) || str(r['Grade / subject']),
@@ -624,7 +720,7 @@ function parentsOfStudents() {
   var people = [];
 
   readTab(STUDENTS).forEach(function (s) {
-    var child = str(s.Name);
+    var child = personName(s);
     [['Parent 1 name', 'Parent 1 email'], ['Parent 2 name', 'Parent 2 email']].forEach(function (pair) {
       var email = str(s[pair[1]]);
       if (!email) return;
@@ -640,6 +736,7 @@ function parentsOfStudents() {
 
       var person = {
         name: str(s[pair[0]]) || 'there',
+        first: str(s[pair[0]]).split(/\s+/)[0] || 'there',
         email: email,
         group: 'Parent',
         grade: '',
@@ -994,11 +1091,11 @@ function roomDialogData() {
         students: namesIn(r.Students)
       };
     }),
-    teachers: readTab(GROUP_TABS.Teacher.tab).filter(function (r) { return str(r.Name); })
-      .map(function (r) { return { name: str(r.Name), detail: str(r['Grade / subject']) }; }),
-    students: readTab(STUDENTS).filter(function (r) { return str(r.Name); })
+    teachers: readTab(GROUP_TABS.Teacher.tab).filter(function (r) { return personName(r); })
+      .map(function (r) { return { name: personName(r), detail: str(r['Grade / subject']) }; }),
+    students: readTab(STUDENTS).filter(function (r) { return personName(r); })
       .map(function (r) {
-        return { name: str(r.Name), detail: str(r.Grade) ? 'Grade ' + str(r.Grade) : '' };
+        return { name: personName(r), detail: str(r.Grade) ? 'Grade ' + str(r.Grade) : '' };
       })
   };
 }
@@ -1077,7 +1174,7 @@ function emailRoomAssignments() {
       if (!address) { unknown.push(teacher + ' (room ' + roomName + ')'); return; }
 
       var body = [
-        'Hi ' + teacher + ',',
+        'Hi ' + givenName(teacher) + ',',
         '',
         'Here is your room for the Open House.',
         '',
@@ -1114,7 +1211,7 @@ function emailLookup() {
   var tabs = GROUPS.map(function (g) { return GROUP_TABS[g].tab; }).concat([TEAM]);
   tabs.forEach(function (name) {
     readTab(name).forEach(function (r) {
-      var person = str(r.Name);
+      var person = personName(r);
       var email = str(r.Email);
       if (person && email && !map[person.toLowerCase()]) map[person.toLowerCase()] = email;
     });
@@ -1177,7 +1274,7 @@ function sendTaskReminders() {
     if (!address) { unknown.push(owner); return; }
 
     var mine = byOwner[owner];
-    var body = ['Hi ' + owner + ',', '', 'Open House tasks that still need you:', '']
+    var body = ['Hi ' + givenName(owner) + ',', '', 'Open House tasks that still need you:', '']
       .concat(mine.map(function (t) { return ' - ' + describe(t, today); }))
       .concat(['', 'The full list lives on the Tasks tab of the Open House sheet.', '', 'Thank you,', sender])
       .join('\n');
@@ -1303,7 +1400,10 @@ function checkForProblems() {
     readTab(spec.tab).forEach(function (r) {
       var at = spec.tab + ' row ' + r._row + ': ';
       var email = str(r.Email);
-      if (!str(r.Name)) problems.push(at + 'no name.');
+      if (!personName(r)) problems.push(at + 'no name.');
+      else if (columnOf(spec.tab, FIRST) && !str(r[LAST])) {
+        problems.push(at + '"' + personName(r) + '" has no last name.');
+      }
       if (!email) problems.push(at + 'no email address.');
       else if (!looksLikeEmail(email)) problems.push(at + '"' + email + '" does not look like an email address.');
       else {
@@ -1322,7 +1422,7 @@ function checkForProblems() {
     var spec = GROUP_TABS[group];
     var byName = {};
     readTab(spec.tab).forEach(function (r) {
-      var name = str(r.Name);
+      var name = personName(r);
       if (!name) return;
       var key = name.toLowerCase();
       if (byName[key]) {
@@ -1362,7 +1462,7 @@ function checkForProblems() {
   });
   readTab(PARENTS).forEach(function (p) {
     var at = PARENTS + ' row ' + p._row + ': ';
-    var name = str(p.Name);
+    var name = personName(p);
     if (!name) return;
     if (!(name.toLowerCase() in studentParentEmails)) {
       problems.push(at + '"' + name + '" is not named as a parent on the Students tab. Fine if their child is not working, worth a look otherwise.');
@@ -1385,7 +1485,7 @@ function checkForProblems() {
   // Team
   readTab(TEAM).forEach(function (r) {
     var at = TEAM + ' row ' + r._row + ': ';
-    if (!str(r.Name)) problems.push(at + 'no name.');
+    if (!personName(r)) problems.push(at + 'no name.');
     var email = str(r.Email);
     if (!email) problems.push(at + 'no email address, so this person cannot be reminded.');
     else if (!looksLikeEmail(email)) problems.push(at + '"' + email + '" does not look like an email address.');
@@ -1456,6 +1556,7 @@ function templateFor(key) {
 
 function fill(text, person, sender) {
   return String(text)
+    .replace(/\{\{\s*firstname\s*\}\}/gi, person.first || person.name || '')
     .replace(/\{\{\s*name\s*\}\}/gi, person.name || '')
     .replace(/\{\{\s*email\s*\}\}/gi, person.email || '')
     .replace(/\{\{\s*grade\s*\}\}/gi, person.grade || '')
