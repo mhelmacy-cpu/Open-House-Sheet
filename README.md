@@ -135,8 +135,11 @@ seven, which can only happen if something was pasted in past the dropdown.
 
 ### Teachers
 
-| Name | Email | Grade | Subject | Notes | Email confirmation sent |
-|---|---|---|---|---|---|
+| Name | Role | Division | Grade | Subject | Notes | Email | Email confirmation sent |
+|---|---|---|---|---|---|---|---|
+
+*Role* is free text — you didn't name a fixed set, so it isn't a dropdown.
+*Division* is the same LS / MS / LS/MS dropdown as on the Parents tab.
 
 If you already had the combined *Grade / subject* column, setup keeps whatever
 was in it under **Grade** and adds an empty **Subject** beside it — it can't
@@ -338,10 +341,14 @@ Run this before you send anything. It flags:
   account, 400–1,500 on Workspace). Creating drafts doesn't count against the
   cap; sending does. One BCC draft is a single message no matter how many
   recipients, so it's the safe choice for a long list.
-- Reordering or renaming columns on a tab won't break anything — the script
-  reads each tab by its header row, not by column position. Setup adds new
-  columns in place and renames changed ones without moving their data, so
-  re-running it on a sheet you've been filling in is safe.
+- Re-running setup on a sheet you've been filling in is safe. It reads every
+  tab by its header row rather than by column position, adds new columns in
+  place, renames changed ones, and **puts the columns back into the order
+  listed above** — each column's contents travelling with it. So if you
+  rearrange columns by hand, the next setup run will undo it; to change the
+  order for good, edit that tab's `headers` list near the top of the script.
+  Columns you add yourself are left alone, after the ones the script knows
+  about.
 - The header row of every tab is LREI red, set by `HEADER_FILL` at the top of
   the script. Change that one value and re-run *Set up / repair sheet* to
   recolour every header on every tab.

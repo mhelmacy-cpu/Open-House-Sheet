@@ -87,7 +87,7 @@ var GROUP_TABS = {
   },
   Teacher: {
     tab: 'Teachers',
-    headers: [NAME, 'Email', 'Grade', 'Subject', 'Notes', SENT]
+    headers: [NAME, 'Role', 'Division', 'Grade', 'Subject', 'Notes', 'Email', SENT]
   }
 };
 
@@ -208,11 +208,13 @@ function setUpSheet() {
   }
 
   var teachers = tab(ss, GROUP_TABS.Teacher.tab, GROUP_TABS.Teacher.headers);
-  widths(GROUP_TABS.Teacher.tab, [[NAME, 170], ['Email', 230],
-    ['Grade', 90], ['Subject', 160], ['Notes', 220]]);
+  widths(GROUP_TABS.Teacher.tab, [[NAME, 170], ['Role', 150], ['Division', 95],
+    ['Grade', 90], ['Subject', 160], ['Notes', 220], ['Email', 230]]);
+  dropdown(GROUP_TABS.Teacher.tab, 'Division', DIVISIONS,
+    'Lower School, Middle School, or both');
   if (teachers.getLastRow() < 2) {
-    teachers.getRange(2, 1, 1, 4).setValues([
-      ['Pat Chen', 'pat.chen@example.com', '4', 'Science']
+    teachers.getRange(2, 1, 1, 7).setValues([
+      ['Pat Chen', 'Head teacher', 'LS', '4', 'Science', '', 'pat.chen@example.com']
     ]);
   }
 
@@ -349,6 +351,7 @@ function tab(ss, name, headers) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   } else {
     ensureColumns(sheet, headers);
+    orderColumns(sheet, headers);
   }
   sheet.getRange(1, 1, 1, Math.max(tableWidth(sheet), headers.length))
     .setFontWeight('bold')
@@ -396,6 +399,32 @@ function ensureColumns(sheet, headers) {
       sheet.insertColumnBefore(position);
       sheet.getRange(1, position).setValue(headers[i]);
     }
+  }
+}
+
+/**
+ * Puts the table's columns into the order the script lists them in, carrying
+ * each column's contents along with it. Only ever moves a column leftwards:
+ * by the time it looks at position n, positions before it are already right,
+ * so the column it wants can only be further along.
+ *
+ * This is what makes "Set up / repair sheet" able to change a layout rather
+ * than only add to it. Columns you added yourself sit after the ones the
+ * script knows about, and are left in their own order.
+ */
+function orderColumns(sheet, headers) {
+  for (var target = 0; target < headers.length; target++) {
+    var width = tableWidth(sheet);
+    if (!width) return;
+
+    var current = sheet.getRange(1, 1, 1, width).getValues()[0].map(function (h) {
+      return String(h).trim().toLowerCase();
+    });
+
+    var at = current.indexOf(headers[target].toLowerCase());
+    if (at === -1 || at === target) continue;
+
+    sheet.moveColumns(sheet.getRange(1, at + 1, sheet.getMaxRows(), 1), target + 1);
   }
 }
 
@@ -954,6 +983,7 @@ function peopleIn(groups) {
         group: group,
         grade: str(r.Grade),
         subject: str(r.Subject),
+        role: str(r.Role),
         children: str(r['Child(ren)']),
         division: str(r.Division),
         borough: str(r.Borough),
@@ -1353,7 +1383,8 @@ function roomDialogData() {
       .map(function (r) {
         return {
           name: personName(r),
-          detail: [str(r.Grade), str(r.Subject)].filter(String).join(' \u00b7 ')
+          detail: [str(r.Role), str(r.Division), str(r.Grade), str(r.Subject)]
+            .filter(String).join(' \u00b7 ')
         };
       }),
     students: readTab(STUDENTS).filter(function (r) { return personName(r); })
@@ -1756,6 +1787,16 @@ function checkForProblems() {
     });
   });
 
+  // A teacher's division, same way. Blank is fine here: the LS / MS send
+  // filter reads the Parents tab, not this one.
+  readTab(GROUP_TABS.Teacher.tab).forEach(function (r) {
+    var division = str(r.Division);
+    if (division && DIVISIONS.indexOf(division) === -1) {
+      problems.push(GROUP_TABS.Teacher.tab + ' row ' + r._row + ': division "' +
+        division + '" is not one of ' + DIVISIONS.join(', ') + '.');
+    }
+  });
+
   // Team
   readTab(TEAM).forEach(function (r) {
     var at = TEAM + ' row ' + r._row + ': ';
@@ -1838,6 +1879,7 @@ function fill(text, person, sender) {
     .replace(/\{\{\s*division\s*\}\}/gi, person.division || '')
     .replace(/\{\{\s*borough\s*\}\}/gi, person.borough || '')
     .replace(/\{\{\s*subject\s*\}\}/gi, person.subject || '')
+    .replace(/\{\{\s*role\s*\}\}/gi, person.role || '')
     .replace(/\{\{\s*room\s*\}\}/gi, person.room || 'TBC')
     .replace(/\{\{\s*sender\s*\}\}/gi, sender || '');
 }
