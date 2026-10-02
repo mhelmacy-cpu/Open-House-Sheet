@@ -52,17 +52,29 @@ var FIRST = 'First name';
 var LAST = 'Last name';
 
 var DIVISIONS = ['LS', 'MS', 'LS/MS'];
+
+// Where a family travels in from. Not strictly boroughs -- the last three are
+// not -- but it is one question with one answer, so it is one column.
+var BOROUGHS = [
+  'M - Manhattan',
+  'B - Brooklyn',
+  'Q - Queens',
+  'X - The Bronx',
+  'J - New Jersey',
+  'LI - Long Island',
+  'CT - Connecticut'
+];
 var ATTENDING_VALUES = ['Yes', 'No', 'Maybe'];
 
 /** Each group lives on its own tab, with its own columns. */
 var GROUP_TABS = {
   Parent: {
     tab: PARENTS,
-    headers: [NAME, 'Email', 'Child(ren)', 'Division', 'Notes', SENT, ATTENDING]
+    headers: [NAME, 'Email', 'Child(ren)', 'Division', 'Borough', 'Notes', SENT, ATTENDING]
   },
   Student: {
     tab: STUDENTS,
-    headers: [FIRST, LAST, 'Email', 'Grade',
+    headers: [FIRST, LAST, 'Email', 'Grade', 'Borough',
       'Parent 1 name', 'Parent 2 name', 'Parent 1 email', 'Parent 2 email',
       'Notes', SENT, PARENT_SENT]
   },
@@ -154,19 +166,23 @@ function setUpSheet() {
   var students = tab(ss, GROUP_TABS.Student.tab, GROUP_TABS.Student.headers);
   var studentsSplit = splitFullNames(STUDENTS);
   widths(STUDENTS, [[FIRST, 140], [LAST, 140], ['Email', 230], ['Grade', 70],
-    ['Parent 1 name', 170], ['Parent 2 name', 170],
+    ['Borough', 135], ['Parent 1 name', 170], ['Parent 2 name', 170],
     ['Parent 1 email', 230], ['Parent 2 email', 230], ['Notes', 220]]);
+  boroughDropdown(STUDENTS);
   if (students.getLastRow() < 2) {
-    students.getRange(2, 1, 2, 8).setValues([
-      ['Sam', 'Doe', 'sam.doe@example.com', '7', 'Jane Doe', 'Chris Doe', 'jane.doe@example.com', 'chris.doe@example.com'],
-      ['Alex', 'Rivera', 'alex.rivera@example.com', '9', 'Mia Rivera', '', 'mia.rivera@example.com', '']
+    students.getRange(2, 1, 2, 9).setValues([
+      ['Sam', 'Doe', 'sam.doe@example.com', '7', 'B - Brooklyn',
+        'Jane Doe', 'Chris Doe', 'jane.doe@example.com', 'chris.doe@example.com'],
+      ['Alex', 'Rivera', 'alex.rivera@example.com', '9', 'M - Manhattan',
+        'Mia Rivera', '', 'mia.rivera@example.com', '']
     ]);
   }
 
   var parents = tab(ss, GROUP_TABS.Parent.tab, GROUP_TABS.Parent.headers);
   widths(PARENTS, [[NAME, 170], ['Email', 230], ['Child(ren)', 240],
-    ['Division', 95], ['Notes', 220]]);
+    ['Division', 95], ['Borough', 135], ['Notes', 220]]);
   dropdown(PARENTS, 'Division', DIVISIONS, 'Lower School, Middle School, or both');
+  boroughDropdown(PARENTS);
   attendingDropdown(PARENTS);
   if (parents.getLastRow() < 2) {
     parents.getRange(2, 1, 2, 2).setValues([
@@ -407,6 +423,10 @@ function dropdown(sheetName, header, values, help) {
 
 function attendingDropdown(sheetName) {
   dropdown(sheetName, ATTENDING, ATTENDING_VALUES, 'Did they say they are coming?');
+}
+
+function boroughDropdown(sheetName) {
+  dropdown(sheetName, 'Borough', BOROUGHS, 'Where they travel in from');
 }
 
 function widths(sheetName, pairs) {
@@ -700,6 +720,7 @@ function peopleIn(groups) {
         grade: str(r.Grade) || str(r['Grade / subject']),
         children: str(r['Child(ren)']),
         division: str(r.Division),
+        borough: str(r.Borough),
         stamps: [{ tab: spec.tab, row: r._row, header: SENT }]
       };
       byEmail[key] = person;
@@ -742,6 +763,7 @@ function parentsOfStudents() {
         grade: '',
         childList: child ? [child] : [],
         division: '',
+        borough: str(s.Borough),
         stamps: [stamp]
       };
       byEmail[key] = person;
@@ -1482,6 +1504,17 @@ function checkForProblems() {
     }
   });
 
+  // Borough, where it has been filled in: a pasted value can sidestep the dropdown.
+  [STUDENTS, PARENTS].forEach(function (name) {
+    readTab(name).forEach(function (r) {
+      var borough = str(r.Borough);
+      if (borough && BOROUGHS.indexOf(borough) === -1) {
+        problems.push(name + ' row ' + r._row + ': borough "' + borough +
+          '" is not one of the seven options. Pick it from the dropdown.');
+      }
+    });
+  });
+
   // Team
   readTab(TEAM).forEach(function (r) {
     var at = TEAM + ' row ' + r._row + ': ';
@@ -1562,6 +1595,7 @@ function fill(text, person, sender) {
     .replace(/\{\{\s*grade\s*\}\}/gi, person.grade || '')
     .replace(/\{\{\s*children\s*\}\}/gi, person.children || 'your child')
     .replace(/\{\{\s*division\s*\}\}/gi, person.division || '')
+    .replace(/\{\{\s*borough\s*\}\}/gi, person.borough || '')
     .replace(/\{\{\s*room\s*\}\}/gi, person.room || 'TBC')
     .replace(/\{\{\s*sender\s*\}\}/gi, sender || '');
 }

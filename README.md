@@ -65,8 +65,8 @@ actually needs.
 
 ### Students — the master sheet
 
-| First name | Last name | Email | Grade | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Parent confirmation sent |
-|---|---|---|---|---|---|---|---|---|---|---|
+| First name | Last name | Email | Grade | Borough | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Parent confirmation sent |
+|---|---|---|---|---|---|---|---|---|---|---|---|
 
 Every student who is working. The name is split in two so the tab sorts by
 surname; the parent name columns stay single. The two stamped columns track different things:
@@ -79,13 +79,15 @@ Rooms tab — reads either shape, so the two kinds of tab mix freely.
 
 ### Parents — the parents who are working
 
-| Name | Email | Child(ren) | Division | Notes | Email confirmation sent | Confirmed attending |
-|---|---|---|---|---|---|---|
+| Name | Email | Child(ren) | Division | Borough | Notes | Email confirmation sent | Confirmed attending |
+|---|---|---|---|---|---|---|---|
 
 *Division* is a dropdown: **LS**, **MS**, or **LS/MS** for a parent with
 children in both. *Email confirmation sent* stamps itself when a draft is
 generated; *Confirmed attending* is a Yes / No / Maybe dropdown for you to fill
 in as replies come back.
+
+*Borough* is the same dropdown as on the Students tab — see below.
 
 This is a deliberately different list from the parent columns on the Students
 tab:
@@ -104,6 +106,21 @@ It matches on email first, then name, so two parents with the same name don't
 get confused. It writes plain text rather than a formula, so it survives column
 edits and you can still type a name in by hand — anything it can't match is left
 alone and reported.
+
+#### Borough
+
+On both Students and Parents, a dropdown of where the family travels in from:
+
+| | |
+|---|---|
+| `M - Manhattan` | `X - The Bronx` |
+| `B - Brooklyn` | `J - New Jersey` |
+| `Q - Queens` | `LI - Long Island` |
+| | `CT - Connecticut` |
+
+Reference only — nothing in the script filters or emails by it, so leaving it
+blank breaks nothing. *Check for problems* flags a value that isn't one of the
+seven, which can only happen if something was pasted in past the dropdown.
 
 ### Musicians
 
@@ -159,6 +176,7 @@ one group at a time. Placeholders that get filled in:
 - `{{grade}}` — a student's grade, or a teacher's grade/subject
 - `{{children}}` — a parent's child or children
 - `{{division}}` — a parent's LS / MS / LS-MS division
+- `{{borough}}` — where they travel in from
 - `{{room}}` — the room they're assigned to on the Rooms tab (or `TBC`)
 - `{{sender}}` — your name (the script asks once and remembers it)
 
