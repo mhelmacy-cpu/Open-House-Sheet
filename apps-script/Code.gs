@@ -30,10 +30,8 @@ var PARENTS = 'Parents';
 var GROUPS = ['Parent', 'Student', 'Musician', 'Teacher'];
 
 // SENT is on every group tab and is stamped by the script when a draft is
-// generated. ATTENDING is on the Parents and Musicians tabs, where a reply is
-// worth tracking, and is yours to fill in as answers come back. Students and
-// teachers don't have it: they are working the event, not replying to an
-// invitation.
+// generated. ATTENDING is yours to fill in as answers come back; it is on every
+// tab but Teachers, and on Students it is what the borough count keys off.
 var SENT = 'Email confirmation sent';
 var ATTENDING = 'Confirmed attending';
 var PARENT_SENT = 'Parent confirmation sent';
@@ -55,6 +53,11 @@ var DIVISIONS = ['LS', 'MS', 'LS/MS'];
 
 // Where a family travels in from. Not strictly boroughs -- the last three are
 // not -- but it is one question with one answer, so it is one column.
+// The rows of the grade summary, and the suffix written beside each child's
+// name. Zeros are informative here -- they show which grades are missing.
+var GRADES = ['K', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th',
+  '9th', '10th', '11th', '12th'];
+
 var BOROUGHS = [
   'M - Manhattan',
   'B - Brooklyn',
@@ -76,7 +79,7 @@ var GROUP_TABS = {
     tab: STUDENTS,
     headers: [FIRST, LAST, 'Email', 'Grade', 'Borough',
       'Parent 1 name', 'Parent 2 name', 'Parent 1 email', 'Parent 2 email',
-      'Notes', SENT, PARENT_SENT]
+      'Notes', SENT, ATTENDING, PARENT_SENT]
   },
   Musician: {
     tab: 'Musicians',
@@ -169,6 +172,7 @@ function setUpSheet() {
     ['Borough', 135], ['Parent 1 name', 170], ['Parent 2 name', 170],
     ['Parent 1 email', 230], ['Parent 2 email', 230], ['Notes', 220]]);
   boroughDropdown(STUDENTS);
+  attendingDropdown(STUDENTS);
   if (students.getLastRow() < 2) {
     students.getRange(2, 1, 2, 9).setValues([
       ['Sam', 'Doe', 'sam.doe@example.com', '7', 'B - Brooklyn',
@@ -248,6 +252,9 @@ function setUpSheet() {
   });
   widths(TEMPLATES, [['Group', 120], ['Subject', 300], ['Body', 520]]);
   wrap(TEMPLATES, 'Body');
+
+  buildParentSummary();
+  buildStudentSummary();
 
   var nameSplit = (studentsSplit || 0) + (musiciansSplit || 0);
   if (nameSplit) {
@@ -340,7 +347,7 @@ function tab(ss, name, headers) {
   } else {
     ensureColumns(sheet, headers);
   }
-  sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length))
+  sheet.getRange(1, 1, 1, Math.max(tableWidth(sheet), headers.length))
     .setFontWeight('bold')
     .setBackground(HEADER_FILL)
     .setFontColor(HEADER_TEXT);
@@ -356,7 +363,7 @@ function tab(ss, name, headers) {
  */
 function ensureColumns(sheet, headers) {
   for (var i = 0; i < headers.length; i++) {
-    var width = Math.max(sheet.getLastColumn(), 1);
+    var width = Math.max(tableWidth(sheet), 1);
     var current = sheet.getRange(1, 1, 1, width).getValues()[0].map(function (h) {
       return String(h).trim().toLowerCase();
     });
@@ -451,6 +458,147 @@ function numberFormat(sheetName, header, format) {
   sheet.getRange(2, column, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat(format);
 }
 
+/* --------------------------------------------------------- the summaries */
+
+/**
+ * Both summaries are built out of spreadsheet formulas rather than written as
+ * numbers, so they recalculate the moment you type -- no command to run and
+ * nothing to wait for. They sit to the right of each tab's data with one blank
+ * column between; that gap is what keeps them out of the script's way.
+ *
+ * Everything from the gap rightwards belongs to the summary and is rewritten
+ * whenever setup runs, so don't keep your own notes over there.
+ */
+function buildParentSummary() {
+  var sheet = sheetFor(PARENTS);
+  var children = columnLetter(columnOf(PARENTS, 'Child(ren)'));
+  var borough = columnLetter(columnOf(PARENTS, 'Borough'));
+  var names = columnLetter(columnOf(PARENTS, NAME));
+  if (!children || !borough || !names) return;
+
+  var start = summaryStart(sheet);
+  var labelColumn = columnLetter(start);
+  var valueColumn = columnLetter(start + 1);
+  var tab = "'" + PARENTS + "'!";
+
+  var rows = [];
+  var bold = [];
+  function add(label, formula) {
+    rows.push([label === undefined ? '' : label, formula === undefined ? '' : formula]);
+    return rows.length;          // the sheet row this landed on
+  }
+
+  bold.push(add('PARENTS SUMMARY'));
+  add('Counts itself as you type');
+  add('');
+
+  var representedRow = add('Grades represented');
+  bold.push(representedRow);
+  bold.push(add('Grade', 'Parents'));
+
+  var firstGradeRow = rows.length + 1;
+  GRADES.forEach(function (grade) {
+    var row = rows.length + 1;
+    // Matches "Maren (9th)" inside the Child(ren) cell, however many children
+    // are listed there. The criteria reads the label beside it, so renaming a
+    // grade row re-points its own count.
+    add(grade, '=COUNTIF(' + tab + '$' + children + '$2:$' + children +
+      ', "*(" & $' + labelColumn + row + ' & ")*")');
+  });
+  var lastGradeRow = rows.length;
+
+  rows[representedRow - 1][1] =
+    '=COUNTIF(' + valueColumn + firstGradeRow + ':' + valueColumn + lastGradeRow + ', ">0")';
+
+  add('');
+  bold.push(add('Borough', 'Parents'));
+  BOROUGHS.forEach(function (name) {
+    var row = rows.length + 1;
+    add(name, '=COUNTIF(' + tab + '$' + borough + '$2:$' + borough +
+      ', $' + labelColumn + row + ')');
+  });
+  add('No borough yet', '=COUNTA(' + tab + '$' + names + '$2:$' + names +
+    ') - COUNTA(' + tab + '$' + borough + '$2:$' + borough + ')');
+  bold.push(add('Total parents', '=COUNTA(' + tab + '$' + names + '$2:$' + names + ')'));
+
+  paintSummary(sheet, start, rows, bold);
+}
+
+function buildStudentSummary() {
+  var sheet = sheetFor(STUDENTS);
+  var borough = columnLetter(columnOf(STUDENTS, 'Borough'));
+  var attending = columnLetter(columnOf(STUDENTS, ATTENDING));
+  var names = columnLetter(columnOf(STUDENTS, FIRST));
+  if (!borough || !attending || !names) return;
+
+  var start = summaryStart(sheet);
+  var labelColumn = columnLetter(start);
+  var tab = "'" + STUDENTS + "'!";
+
+  var rows = [];
+  var bold = [];
+  function add(label, formula) {
+    rows.push([label === undefined ? '' : label, formula === undefined ? '' : formula]);
+    return rows.length;
+  }
+
+  bold.push(add('STUDENTS SUMMARY'));
+  add('Confirmed attending only');
+  add('');
+
+  bold.push(add('Borough', 'Confirmed'));
+  BOROUGHS.forEach(function (name) {
+    var row = rows.length + 1;
+    // A student counts towards their borough only once Confirmed attending
+    // says Yes.
+    add(name, '=COUNTIFS(' + tab + '$' + borough + '$2:$' + borough +
+      ', $' + labelColumn + row +
+      ', ' + tab + '$' + attending + '$2:$' + attending + ', "Yes")');
+  });
+
+  add('');
+  bold.push(add('Confirmed', '=COUNTIF(' + tab + '$' + attending + '$2:$' + attending + ', "Yes")'));
+  add('Not coming', '=COUNTIF(' + tab + '$' + attending + '$2:$' + attending + ', "No")');
+  add('No answer yet', '=COUNTA(' + tab + '$' + names + '$2:$' + names +
+    ') - COUNTA(' + tab + '$' + attending + '$2:$' + attending + ')');
+  bold.push(add('Total students', '=COUNTA(' + tab + '$' + names + '$2:$' + names + ')'));
+
+  paintSummary(sheet, start, rows, bold);
+}
+
+/** One blank column past the table, and never left of column T. */
+function summaryStart(sheet) {
+  return Math.max(tableWidth(sheet) + 2, 20);
+}
+
+/** Clears whatever summary was there, then writes this one. */
+function paintSummary(sheet, start, rows, boldRows) {
+  if (sheet.getMaxColumns() < start + 1) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), start + 1 - sheet.getMaxColumns());
+  }
+  if (sheet.getMaxRows() < rows.length) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), rows.length - sheet.getMaxRows());
+  }
+
+  // Everything right of the gap is ours, so a block left stranded by an
+  // inserted column is cleared along with the old one.
+  var firstOurs = tableWidth(sheet) + 2;
+  if (sheet.getMaxColumns() >= firstOurs) {
+    sheet.getRange(1, firstOurs, sheet.getMaxRows(), sheet.getMaxColumns() - firstOurs + 1).clear();
+  }
+
+  sheet.getRange(1, start, rows.length, 2).setValues(rows);
+  sheet.setColumnWidth(start, 175);
+  sheet.setColumnWidth(start + 1, 95);
+
+  sheet.getRange(1, start, 1, 2).setBackground(HEADER_FILL).setFontColor(HEADER_TEXT);
+  sheet.getRange(2, start, 1, 2).setFontSize(9).setFontColor('#777777');
+  boldRows.forEach(function (row) {
+    sheet.getRange(row, start, 1, 2).setFontWeight('bold');
+  });
+  sheet.getRange(1, start + 1, rows.length, 1).setHorizontalAlignment('right');
+}
+
 /* ---------------------------------------------------------- the wording */
 
 /**
@@ -499,19 +647,23 @@ function restoreTemplates() {
  * names into the Child(ren) column. Plain text rather than a formula, so it
  * survives column edits and you can still type a name in by hand.
  */
-function fillInChildren() {
+function fillInChildren(quiet) {
   var sheet = sheetFor(PARENTS);
   var column = columnOf(PARENTS, 'Child(ren)');
   if (!column) {
-    alert('The Parents tab has no "Child(ren)" column. Run "Set up / repair sheet" first.');
+    if (!quiet) alert('The Parents tab has no "Child(ren)" column. Run "Set up / repair sheet" first.');
     return;
   }
 
   var byParentName = {};
   var byParentEmail = {};
   readTab(STUDENTS).forEach(function (s) {
-    var child = personName(s);
-    if (!child) return;
+    // "Maren (9th)" -- the given name, and the grade the summary counts.
+    var given = personFirstName(s);
+    if (!given) return;
+    var grade = gradeLabel(s.Grade);
+    var child = grade ? given + ' (' + grade + ')' : given;
+
     [['Parent 1 name', 'Parent 1 email'], ['Parent 2 name', 'Parent 2 email']].forEach(function (pair) {
       var name = str(s[pair[0]]);
       var email = str(s[pair[1]]);
@@ -531,9 +683,14 @@ function fillInChildren() {
     if (!children || !children.length) { noMatch.push(name); return; }
 
     var unique = children.filter(function (c, i) { return children.indexOf(c) === i; });
-    sheet.getRange(p._row, column).setValue(unique.join(', '));
+    var joined = unique.join(', ');
+    // Only write when it actually differs, so an automatic refill after every
+    // edit does not churn the sheet.
+    if (str(p['Child(ren)']) !== joined) sheet.getRange(p._row, column).setValue(joined);
     filled++;
   });
+
+  if (quiet) return;
 
   var message = 'Filled in children for ' + filled + ' parent(s).';
   if (noMatch.length) {
@@ -542,6 +699,37 @@ function fillInChildren() {
       'Anything already typed in by hand was left alone.';
   }
   alert(message);
+}
+
+/**
+ * Google runs this by itself after any hand edit, so the Child(ren) column --
+ * and therefore the grade count that reads it -- keeps up as students and
+ * parents are added. Script-made edits do not fire it, so there is no loop.
+ */
+function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    var sheet = e.range.getSheet();
+    var name = sheet.getName();
+    if (name !== STUDENTS && name !== PARENTS) return;
+    if (e.range.getLastRow() < 2) return;
+
+    // Only the columns that decide which child belongs to which parent.
+    var watched = (name === STUDENTS
+      ? [FIRST, LAST, 'Grade', 'Parent 1 name', 'Parent 2 name', 'Parent 1 email', 'Parent 2 email']
+      : [NAME, 'Email'])
+      .map(function (header) { return columnOf(name, header); })
+      .filter(function (column) { return column > 0; });
+
+    var from = e.range.getColumn();
+    var to = e.range.getLastColumn();
+    var touched = watched.some(function (column) { return column >= from && column <= to; });
+    if (!touched) return;
+
+    fillInChildren(true);
+  } catch (err) {
+    // An edit must never fail because of this.
+  }
 }
 
 /* ------------------------------------------------------- reading the tabs */
@@ -555,7 +743,8 @@ function readTab(name) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
   if (!sheet || sheet.getLastRow() < 2) return [];
 
-  var width = sheet.getLastColumn();
+  var width = tableWidth(sheet);
+  if (!width) return [];
   var headers = sheet.getRange(1, 1, 1, width).getValues()[0];
   var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
 
@@ -591,6 +780,32 @@ function personName(row) {
   var single = str(row[NAME]);
   if (single) return single;
   return [str(row[FIRST]), str(row[LAST])].filter(String).join(' ');
+}
+
+/** 7 -> "7th", 1 -> "1st", and anything not a number (K, Pre-K) unchanged. */
+function gradeLabel(grade) {
+  var whole = str(grade);
+  if (!whole) return '';
+  var n = parseInt(whole, 10);
+  if (isNaN(n) || String(n) !== whole) return whole;
+
+  var teens = n % 100;
+  if (teens >= 11 && teens <= 13) return n + 'th';
+  if (n % 10 === 1) return n + 'st';
+  if (n % 10 === 2) return n + 'nd';
+  if (n % 10 === 3) return n + 'rd';
+  return n + 'th';
+}
+
+/** 1 -> "A", 27 -> "AA", for building the summary's formulas. */
+function columnLetter(index) {
+  var letters = '';
+  while (index > 0) {
+    var remainder = (index - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    index = Math.floor((index - 1) / 26);
+  }
+  return letters;
 }
 
 /** The first word of a full name, for greeting someone by it. */
@@ -641,10 +856,27 @@ function splitFullNames(sheetName) {
   return split;
 }
 
+/**
+ * How many columns the table itself occupies: everything from column 1 up to
+ * the first empty header cell. The summary blocks live past that gap, which is
+ * what keeps them out of the script's way.
+ */
+function tableWidth(sheet) {
+  var last = sheet.getLastColumn();
+  if (!last) return 0;
+  var headers = sheet.getRange(1, 1, 1, last).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).trim() === '') return i;
+  }
+  return headers.length;
+}
+
 /** Finds a column by its header, so reordering columns doesn't misplace writes. */
 function columnOf(sheetName, header) {
   var sheet = sheetFor(sheetName);
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var width = tableWidth(sheet);
+  if (!width) return 0;
+  var headers = sheet.getRange(1, 1, 1, width).getValues()[0];
   for (var i = 0; i < headers.length; i++) {
     if (String(headers[i]).trim().toLowerCase() === header.toLowerCase()) return i + 1;
   }

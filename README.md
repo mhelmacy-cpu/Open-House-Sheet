@@ -65,8 +65,8 @@ actually needs.
 
 ### Students — the master sheet
 
-| First name | Last name | Email | Grade | Borough | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Parent confirmation sent |
-|---|---|---|---|---|---|---|---|---|---|---|---|
+| First name | Last name | Email | Grade | Borough | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Confirmed attending | Parent confirmation sent |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 Every student who is working. The name is split in two so the tab sorts by
 surname; the parent name columns stay single. The two stamped columns track different things:
@@ -100,12 +100,18 @@ So a parent helping out appears on both, and a parent who is just a contact for
 their child appears only on Students. The send dialog can reach either list, or
 both at once.
 
-**Fill in children on the Parents tab** looks each parent up against the
-Students tab and writes their children's names into the *Child(ren)* column.
+The *Child(ren)* column is written for you, in the form
+`Maren (9th), Kristen (4th)` — given name plus grade, one entry per child.
+**This happens by itself**: Google re-runs the fill after any edit to a name,
+grade or parent name on either tab, so adding a student updates their parents
+without you doing anything. **Fill in children on the Parents tab** does the
+same on demand if you want to force it.
+
 It matches on email first, then name, so two parents with the same name don't
 get confused. It writes plain text rather than a formula, so it survives column
-edits and you can still type a name in by hand — anything it can't match is left
-alone and reported.
+edits and you can still type into it by hand — anything it can't match is left
+alone and reported. That `(9th)` is also what the grade count reads, so the
+format matters.
 
 #### Borough
 
@@ -132,9 +138,8 @@ seven, which can only happen if something was pasted in past the dropdown.
 | Name | Email | Grade / subject | Notes | Email confirmation sent |
 |---|---|---|---|---|
 
-No *Confirmed attending* here or on Students: those two are working the event
-rather than replying to an invitation. Parents and musicians have it, because
-with them a reply is worth tracking.
+Teachers are the only tab without *Confirmed attending* — everyone else has it,
+and on Students it's what the borough count keys off.
 
 ### Team — the people running the event
 
@@ -163,6 +168,32 @@ You still can type, though: several names in the Teachers or Students cell
 separated by commas, semicolons or line breaks, and `Pat Chen, Alex Rivera` all
 works. Names should match a group tab or the Team tab so the script can find
 email addresses; *Check for problems* tells you when one doesn't.
+
+### The summaries
+
+Two live count blocks, each to the right of its tab's data starting at
+**column T**, past one blank column. They're built from spreadsheet formulas,
+not written-in numbers, so **they recount the moment you type** — no command to
+run, nothing to refresh.
+
+**On Parents — grades represented.** Every grade from K to 12th with the number
+of parents who have a child in it, read out of the `(9th)` in the *Child(ren)*
+column. A parent with children in two grades counts in both. The zeros are the
+useful part: they show which grades you have nobody from. Above the table, a
+single figure for how many grades are covered at all.
+
+**On Parents — parents by borough.** A count per borough, plus how many parents
+have no borough filled in yet, plus the total.
+
+**On Students — confirmed by borough.** The same borough breakdown, but a
+student is only counted **once their *Confirmed attending* says Yes**. Said No
+or not answered, and they don't appear in any borough row. Underneath: how many
+confirmed, how many aren't coming, how many haven't answered, and the total.
+
+Everything from that blank column rightwards belongs to the summary and is
+rewritten whenever setup runs, so don't keep your own notes over there. The rest
+of the script ignores it: each tab's table is taken to end at the first empty
+header cell.
 
 ### Templates — the wording
 
@@ -277,6 +308,7 @@ own. Works whether or not the sheet is open. Turn it off from the same menu.
 Run this before you send anything. It flags:
 
 - missing names, missing or malformed email addresses
+- a borough that isn't one of the seven (only possible if pasted in)
 - two people with the same name on one tab (room assignments go by name, so a
   repeat is ambiguous), and two rooms with the same name
 - a parent with no division, or one that isn't LS / MS / LS-MS
