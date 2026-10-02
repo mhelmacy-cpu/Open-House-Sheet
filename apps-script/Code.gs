@@ -87,7 +87,7 @@ var GROUP_TABS = {
   },
   Teacher: {
     tab: 'Teachers',
-    headers: [NAME, 'Email', 'Grade / subject', 'Notes', SENT]
+    headers: [NAME, 'Email', 'Grade', 'Subject', 'Notes', SENT]
   }
 };
 
@@ -102,6 +102,7 @@ RENAMED_COLUMNS[PARENT_SENT] = ['Parents emailed?'];
 // first-name column and keeps whatever is in it; splitFullNames then moves
 // each surname across.
 RENAMED_COLUMNS[FIRST] = [NAME];
+RENAMED_COLUMNS['Grade'] = ['Grade / subject'];
 
 var STATUSES = ['Not started', 'In progress', 'Blocked', 'Done'];
 
@@ -208,9 +209,11 @@ function setUpSheet() {
 
   var teachers = tab(ss, GROUP_TABS.Teacher.tab, GROUP_TABS.Teacher.headers);
   widths(GROUP_TABS.Teacher.tab, [[NAME, 170], ['Email', 230],
-    ['Grade / subject', 150], ['Notes', 220]]);
+    ['Grade', 90], ['Subject', 160], ['Notes', 220]]);
   if (teachers.getLastRow() < 2) {
-    teachers.getRange(2, 1, 1, 3).setValues([['Pat Chen', 'pat.chen@example.com', 'Grade 4']]);
+    teachers.getRange(2, 1, 1, 4).setValues([
+      ['Pat Chen', 'pat.chen@example.com', '4', 'Science']
+    ]);
   }
 
   var team = tab(ss, TEAM, TEAM_HEADERS);
@@ -949,7 +952,8 @@ function peopleIn(groups) {
         first: personFirstName(r) || 'there',
         email: email,
         group: group,
-        grade: str(r.Grade) || str(r['Grade / subject']),
+        grade: str(r.Grade),
+        subject: str(r.Subject),
         children: str(r['Child(ren)']),
         division: str(r.Division),
         borough: str(r.Borough),
@@ -1346,7 +1350,12 @@ function roomDialogData() {
       };
     }),
     teachers: readTab(GROUP_TABS.Teacher.tab).filter(function (r) { return personName(r); })
-      .map(function (r) { return { name: personName(r), detail: str(r['Grade / subject']) }; }),
+      .map(function (r) {
+        return {
+          name: personName(r),
+          detail: [str(r.Grade), str(r.Subject)].filter(String).join(' \u00b7 ')
+        };
+      }),
     students: readTab(STUDENTS).filter(function (r) { return personName(r); })
       .map(function (r) {
         return { name: personName(r), detail: str(r.Grade) ? 'Grade ' + str(r.Grade) : '' };
@@ -1828,6 +1837,7 @@ function fill(text, person, sender) {
     .replace(/\{\{\s*children\s*\}\}/gi, person.children || 'your child')
     .replace(/\{\{\s*division\s*\}\}/gi, person.division || '')
     .replace(/\{\{\s*borough\s*\}\}/gi, person.borough || '')
+    .replace(/\{\{\s*subject\s*\}\}/gi, person.subject || '')
     .replace(/\{\{\s*room\s*\}\}/gi, person.room || 'TBC')
     .replace(/\{\{\s*sender\s*\}\}/gi, sender || '');
 }

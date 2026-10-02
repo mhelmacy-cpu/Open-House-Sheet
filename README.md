@@ -135,8 +135,13 @@ seven, which can only happen if something was pasted in past the dropdown.
 
 ### Teachers
 
-| Name | Email | Grade / subject | Notes | Email confirmation sent |
-|---|---|---|---|---|
+| Name | Email | Grade | Subject | Notes | Email confirmation sent |
+|---|---|---|---|---|---|
+
+If you already had the combined *Grade / subject* column, setup keeps whatever
+was in it under **Grade** and adds an empty **Subject** beside it — it can't
+tell which half of `Grade 4` or `Music` was which, so move anything that's
+really a subject across by hand.
 
 Teachers are the only tab without *Confirmed attending* — everyone else has it,
 and on Students it's what the borough count keys off.
@@ -208,6 +213,7 @@ one group at a time. Placeholders that get filled in:
 - `{{children}}` — a parent's child or children
 - `{{division}}` — a parent's LS / MS / LS-MS division
 - `{{borough}}` — where they travel in from
+- `{{subject}}` — a teacher's subject
 - `{{room}}` — the room they're assigned to on the Rooms tab (or `TBC`)
 - `{{sender}}` — your name (the script asks once and remembers it)
 
