@@ -140,6 +140,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Assign people to a room...', 'showRoomDialog')
     .addItem('Email room assignments to teachers', 'emailRoomAssignments')
+    .addItem('Update who has been emailed', 'updateSentColumn')
     .addSeparator()
     .addItem('Send task reminders now', 'sendTaskRemindersNow')
     .addItem('Turn on daily task reminders', 'enableDailyReminders')
@@ -1201,10 +1202,11 @@ function runSend(payload) {
     GmailApp.createDraft(inbox, fill(template.subject, greeting, sender), fill(template.body, greeting, sender), {
       bcc: people.map(function (p) { return p.email; }).join(',')
     });
-    people.forEach(stampAll);
-
-    return { message: 'One draft created, addressed to you with ' + people.length +
-      ' BCC recipient(s), using the ' + key + ' wording.\n\nReview it in Gmail before sending.' };
+    return { message: 'One DRAFT created, addressed to you with ' + people.length +
+      ' BCC recipient(s), using the ' + key + ' wording.\n\n' +
+      'Nothing has been sent. Open Gmail, read it, and press Send yourself. ' +
+      'Afterwards, run "Update who has been emailed" to fill in the ' +
+      '"' + SENT + '" column from what actually left your account.' };
   }
 
   var missing = {};
@@ -1218,7 +1220,6 @@ function runSend(payload) {
 
     person.room = rooms[person.name.toLowerCase()] || '';
     GmailApp.createDraft(person.email, fill(template.subject, person, sender), fill(template.body, person, sender));
-    stampAll(person);
     made++;
   });
 
@@ -1236,7 +1237,10 @@ function runSend(payload) {
     }
   }
 
-  var message = made + ' draft' + (made === 1 ? '' : 's') + ' created in Gmail. Open Drafts to review and send.';
+  var message = made + ' DRAFT' + (made === 1 ? '' : 'S') + ' created in Gmail.\n\n' +
+    'Nothing has been sent. Open Drafts, read them, and press Send yourself. ' +
+    'Afterwards, run "Update who has been emailed" to fill in the "' + SENT +
+    '" column from what actually left your account.';
   if (empties.length) {
     message += '\n\nSkipped anyone needing the "' + empties.join('" or "') +
       '" wording -- that row on the Templates tab is still blank.';
@@ -1246,13 +1250,6 @@ function runSend(payload) {
       '" template -- no such row on the Templates tab.';
   }
   return { message: message };
-}
-
-function stampAll(person) {
-  (person.stamps || []).forEach(function (s) {
-    var column = columnOf(s.tab, s.header);
-    if (column) sheetFor(s.tab).getRange(s.row, column).setValue(new Date());
-  });
 }
 
 /* ------------------------------------------------------ the room picker */
@@ -1548,6 +1545,132 @@ function emailLookup() {
     });
   });
   return map;
+}
+
+/* ------------------------------------------------- who has actually been sent to */
+
+/**
+ * The "''' + SENT + '''" column is a claim about what left your account, so
+ * nothing fills it in except this, which reads your Sent mail and takes the
+ * answer from there. Creating a draft deliberately stamps nothing: a draft is
+ * not a sent email, and the column would be lying until you pressed Send.
+ *
+ * It finds your sent messages by the subject lines on the Templates tab, so
+ * editing a subject after sending will hide those messages from it.
+ */
+function updateSentColumn() {
+  var ui = SpreadsheetApp.getUi();
+  var inbox = me();
+
+  var subjects = [];
+  TEMPLATE_KEYS.forEach(function (key) {
+    var template = templateFor(key);
+    var subject = template ? str(template.subject) : '';
+    if (subject && subjects.indexOf(subject) === -1) subjects.push(subject);
+  });
+
+  if (!subjects.length) {
+    alert('No row on the Templates tab has a subject line yet, so there is nothing to look for in your Sent mail.');
+    return;
+  }
+
+  var confirm = ui.alert('Read your Sent mail?',
+    'This searches your own Sent mail for these subject lines:\n\n  ' +
+    subjects.join('\n  ') + '\n\nand fills in the "' + SENT +
+    '" column for everyone it finds. It reads only your sent messages and changes nothing in Gmail.',
+    ui.ButtonSet.OK_CANCEL);
+  if (confirm !== ui.Button.OK) return;
+
+  // address -> the most recent time you sent to it
+  var sentTo = {};
+  var found = 0;
+  subjects.forEach(function (subject) {
+    var query = 'in:sent subject:"' + subject.replace(/"/g, '') + '"';
+    GmailApp.search(query, 0, 100).forEach(function (thread) {
+      thread.getMessages().forEach(function (message) {
+        // A thread holds replies too; only messages you sent count.
+        if (inbox && message.getFrom().toLowerCase().indexOf(inbox.toLowerCase()) === -1) return;
+        var when = message.getDate();
+        var line = [message.getTo(), message.getCc(), message.getBcc()].join(',');
+        (line.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || []).forEach(function (address) {
+          var key = address.toLowerCase();
+          if (!sentTo[key] || sentTo[key] < when) { sentTo[key] = when; }
+        });
+        found++;
+      });
+    });
+  });
+
+  if (!found) {
+    alert('Found no sent messages with those subject lines.\n\n' +
+      'If you have not pressed Send yet, that is the answer: the drafts are still sitting in Gmail. ' +
+      'Nothing in this sheet sends an email to a parent, student, musician or teacher by itself.');
+    return;
+  }
+
+  var stamped = 0;
+  var wrong = [];
+
+  GROUPS.forEach(function (group) {
+    var spec = GROUP_TABS[group];
+    var column = columnOf(spec.tab, SENT);
+    if (!column) return;
+    var sheet = sheetFor(spec.tab);
+
+    readTab(spec.tab).forEach(function (r) {
+      var email = str(r.Email).toLowerCase();
+      if (!email) return;
+
+      if (sentTo[email]) {
+        sheet.getRange(r._row, column).setValue(sentTo[email]);
+        stamped++;
+      } else if (str(r[SENT])) {
+        wrong.push({ tab: spec.tab, row: r._row, column: column, who: personName(r) });
+      }
+    });
+  });
+
+  // The Students tab also tracks whether the parents were written to.
+  var parentColumn = columnOf(STUDENTS, PARENT_SENT);
+  if (parentColumn) {
+    var students = sheetFor(STUDENTS);
+    readTab(STUDENTS).forEach(function (r) {
+      var when = null;
+      ['Parent 1 email', 'Parent 2 email'].forEach(function (header) {
+        var hit = sentTo[str(r[header]).toLowerCase()];
+        if (hit && (!when || when < hit)) when = hit;
+      });
+      if (when) {
+        students.getRange(r._row, parentColumn).setValue(when);
+        stamped++;
+      } else if (str(r[PARENT_SENT])) {
+        wrong.push({ tab: STUDENTS, row: r._row, column: parentColumn, who: personName(r) + "'s parents" });
+      }
+    });
+  }
+
+  var message = 'Read ' + found + ' sent message(s) and filled in ' + stamped + ' row(s).';
+
+  if (wrong.length) {
+    var list = wrong.slice(0, 15).map(function (w) {
+      return '  ' + w.tab + ' row ' + w.row + ': ' + w.who;
+    }).join('\n');
+    var more = wrong.length > 15 ? '\n  ...and ' + (wrong.length - 15) + ' more' : '';
+
+    var clear = ui.alert('Clear ' + wrong.length + ' stamp(s) that do not match your Sent mail?',
+      'These rows say an email went out, but nothing matching was found in your Sent mail:\n\n' +
+      list + more + '\n\nClear them? Say no if you sent those some other way.',
+      ui.ButtonSet.YES_NO);
+
+    if (clear === ui.Button.YES) {
+      wrong.forEach(function (w) { sheetFor(w.tab).getRange(w.row, w.column).clearContent(); });
+      message += '\n\nCleared ' + wrong.length + ' stamp(s) with no matching sent message.';
+    } else {
+      message += '\n\nLeft ' + wrong.length + ' unmatched stamp(s) alone.';
+    }
+  }
+
+  alert(message);
 }
 
 /* ------------------------------------------------------------- task email */

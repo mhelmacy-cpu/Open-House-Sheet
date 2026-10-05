@@ -55,7 +55,7 @@ The script deliberately does two different things:
 
 | | What happens |
 |---|---|
-| **Open House emails** (parents, students, musicians, teachers) and **room assignments** | Become **Gmail drafts**. You read each one and press Send yourself. |
+| **Open House emails** (parents, students, musicians, teachers) and **room assignments** | Become **Gmail drafts**. You read each one and press Send yourself. Nothing about them reaches a recipient until you do. |
 | **Task reminders** to your own team | **Send immediately** — that's the point of a reminder, and the optional daily run happens while you're away from the computer. |
 
 ## The seven tabs
@@ -273,6 +273,23 @@ Then three buttons:
   nobody sees anyone else's address. Being one message to many people, it always
   uses one shared wording (the **Combined** row if you left the default).
 - **Just show addresses** — the addresses as a comma-separated list to copy
+
+### Update who has been emailed
+
+The *Email confirmation sent* column is a claim about what left your account,
+so **only this command fills it in**, and it gets the answer by reading your own
+Sent mail. Creating a draft stamps nothing — a draft isn't a sent email, and the
+column would be lying until you pressed Send.
+
+It finds your messages by the subject lines on the Templates tab, so editing a
+subject after sending will hide those messages from it. If it finds rows that
+claim an email went out with nothing matching in Sent, it lists them and offers
+to clear them.
+
+**If you're ever unsure whether something went out:** check your Gmail Sent
+folder. Not there means not sent — Gmail copies every outgoing message there.
+Nothing in this sheet emails a parent, student, musician or teacher on its own;
+those are always drafts.
 
 ### Fill in children on the Parents tab
 
