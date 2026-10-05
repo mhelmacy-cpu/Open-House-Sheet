@@ -206,7 +206,12 @@ header cell.
 ### Templates — the wording
 
 One row per group, plus a **Combined** row used when one email goes to more than
-one group at a time. Placeholders that get filled in:
+one group at a time. **The rows arrive blank** — the subject and body are yours
+to write, and nothing is filled in for you.
+
+A row with no body is treated as not ready: the send command skips it and says
+so rather than producing a pile of empty drafts, and *Check for problems* lists
+it. Placeholders you can use in whatever you write:
 
 - `{{name}}` — that person's full name
 - `{{firstname}}` — their given name alone, which is what the built-in wording
@@ -274,15 +279,12 @@ Then three buttons:
 Looks each parent up against the Students tab and writes their children's names
 into the *Child(ren)* column. See the Parents tab above.
 
-### Restore the built-in wording…
+### Blank out the wording…
 
-*Set up / repair sheet* only ever **adds** missing template rows. That's what
-stops it overwriting wording you've edited — and it's also why a change to the
-built-in wording won't appear on a Templates tab you already have.
-
-This is the command that pulls it in. It asks which one — type `Parent`, or
-`all` for every row — and overwrites only what you name, leaving your other
-rows untouched.
+*Set up / repair sheet* only ever **adds** missing template rows, so it never
+overwrites what you've written. This is the command for starting a row over: it
+asks which one — type `Parent`, or `all` for every row — and empties the subject
+and body of just that row, leaving the others alone.
 
 ### Assign people to a room…
 

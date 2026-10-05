@@ -116,38 +116,15 @@ var TEMPLATE_KEYS = GROUPS.concat(['Combined']);
 
 // Starter wording, written into the Templates tab by "Set up / repair sheet".
 // Edit it on the tab, not here -- the tab is what the drafts are built from.
+// The Templates tab starts blank: one row per group, with the subject and body
+// yours to write. Nothing here puts words in your mouth, and a row left empty
+// stops a send rather than producing empty drafts.
 var TEMPLATE_SEED = {
-  Parent: {
-    subject: 'Respond by October 7th - LS/MS Open House',
-    body: "Dear {{firstname}},\n\n" +
-      "LREI's Lower and Middle School Open House will take place on Wednesday, October 14th, from 6:30-8pm.\n\n" +
-      "The Admissions Team would appreciate having you join us as a parent representative for the event!\n\n" +
-      "Here are some details:\n\n" +
-      "\u2022 You would be needed from 6:15pm-7:15pm.\n" +
-      "    - The event starts at 6:30pm. Please arrive by 6:15 so we can give you a name tag and chat about the event.\n\n" +
-      "\u2022 We may assign you to a classroom to start, but you should also feel welcome to move around the building as more prospective parents arrive.\n\n" +
-      "\u2022 We will gather prospective families in the LS/MS auditorium for a panel discussion from 7:15-8pm. Please join us, if you are able.\n\n" +
-      "\u2022 If your child is an MS Admissions Ambassador, they will be ready to go at 7:15pm.\n\n" +
-      "Please let me know if you are available to join us for this event by responding to this email no later than Wednesday, October 7th.\n\n" +
-      "We hope to see you there, and as always, thank you! Your help makes such a difference in our admissions efforts.\n\n" +
-      "Warmly,\n{{sender}}"
-  },
-  Student: {
-    subject: 'Open House - your role on the day',
-    body: "Hi {{firstname}},\n\nThank you for helping at our Open House. Here is where you need to be.\n\nDate:\nTime:\nArrive by:\nYour room: {{room}}\n\nWhat you'll be doing:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
-  },
-  Musician: {
-    subject: 'Open House - performance details',
-    body: "Hi {{firstname}},\n\nThank you for playing at our Open House. Here are the details:\n\nDate:\nTime:\nCall time:\nLocation:\nWhat to bring:\n\nLet me know if you have any questions.\n\nThank you,\n{{sender}}"
-  },
-  Teacher: {
-    subject: 'Open House - setup and staffing',
-    body: "Hi {{firstname}},\n\nHere are the Open House details and what we need from you:\n\nDate:\nTime:\nYour room: {{room}}\nSetup time:\n\nThanks for pitching in.\n\n{{sender}}"
-  },
-  Combined: {
-    subject: 'Open House - details',
-    body: "Hi {{firstname}},\n\nHere are the details for our Open House.\n\nDate:\nTime:\nLocation:\n\nWe hope to see you there.\n\nThank you,\n{{sender}}"
-  }
+  Parent: { subject: '', body: '' },
+  Student: { subject: '', body: '' },
+  Musician: { subject: '', body: '' },
+  Teacher: { subject: '', body: '' },
+  Combined: { subject: '', body: '' }
 };
 
 /* ------------------------------------------------------------------- menu */
@@ -157,7 +134,7 @@ function onOpen() {
     .createMenu('Open House')
     .addItem('Set up / repair sheet', 'setUpSheet')
     .addItem('Fill in children on the Parents tab', 'fillInChildren')
-    .addItem('Restore the built-in wording...', 'restoreTemplates')
+    .addItem('Blank out the wording...', 'restoreTemplates')
     .addSeparator()
     .addItem('Send emails...', 'showSendDialog')
     .addSeparator()
@@ -646,16 +623,16 @@ function paintSummary(sheet, start, rows, boldRows) {
 
 /**
  * "Set up / repair sheet" only adds template rows that are missing, so it
- * never overwrites wording you have edited. This is the way to pull the
- * built-in wording back in when it has changed -- and it does overwrite.
+ * never overwrites what you have written. This is the way to wipe a row back
+ * to blank and start again -- and it does overwrite.
  */
 function restoreTemplates() {
   var ui = SpreadsheetApp.getUi();
 
-  var answer = ui.prompt('Restore the built-in wording',
+  var answer = ui.prompt('Blank out the wording',
     'Which one? ' + TEMPLATE_KEYS.join(' / ') + '\n\n' +
-    'Or type all for every row. Whatever you restore is overwritten, so wording ' +
-    'you have written yourself on those rows is lost. The rest are left alone.',
+    'Or type all for every row. The subject and body of whatever you name are ' +
+    'emptied so you can start again. The other rows are left alone.',
     ui.ButtonSet.OK_CANCEL);
   if (answer.getSelectedButton() !== ui.Button.OK) return;
 
@@ -697,7 +674,7 @@ function restoreTemplates() {
   });
 
   wrap(TEMPLATES, 'Body');
-  alert('Restored: ' + wanted.join(', ') + '.\n\nOpen the Templates tab to check it.');
+  alert('Blanked: ' + wanted.join(', ') + '.\n\nOpen the Templates tab to write the new wording.');
 }
 
 /* ------------------------------------------------- children on the Parents tab */
@@ -1212,6 +1189,10 @@ function runSend(payload) {
     var key = payload.wording === '__own__' ? 'Combined' : payload.wording;
     var template = templateFor(key);
     if (!template) return { message: 'No "' + key + '" row on the Templates tab.' };
+    if (!str(template.body)) {
+      return { message: 'The "' + key + '" row on the Templates tab has no wording in it yet. ' +
+        'Write the email there first, then come back.' };
+    }
 
     var inbox = me();
     if (!inbox) return { message: 'Could not work out your own email address, which the To field of a BCC draft needs. Use "One draft per person" instead.' };
@@ -1227,11 +1208,13 @@ function runSend(payload) {
   }
 
   var missing = {};
+  var blank = {};
   var made = 0;
   people.forEach(function (person) {
     var key = payload.wording === '__own__' ? person.group : payload.wording;
     var template = templateFor(key);
     if (!template) { missing[key] = true; return; }
+    if (!str(template.body)) { blank[key] = true; return; }
 
     person.room = rooms[person.name.toLowerCase()] || '';
     GmailApp.createDraft(person.email, fill(template.subject, person, sender), fill(template.body, person, sender));
@@ -1239,10 +1222,28 @@ function runSend(payload) {
     made++;
   });
 
-  var message = made + ' draft' + (made === 1 ? '' : 's') + ' created in Gmail. Open Drafts to review and send.';
+  var empties = Object.keys(blank);
   var gaps = Object.keys(missing);
+
+  if (!made) {
+    if (empties.length) {
+      return { message: 'Nothing sent: the "' + empties.join('" and "') +
+        '" row(s) on the Templates tab have no wording in them yet. Write the email there first.' };
+    }
+    if (gaps.length) {
+      return { message: 'Nothing sent: there is no "' + gaps.join('" or "') +
+        '" row on the Templates tab. Run "Set up / repair sheet".' };
+    }
+  }
+
+  var message = made + ' draft' + (made === 1 ? '' : 's') + ' created in Gmail. Open Drafts to review and send.';
+  if (empties.length) {
+    message += '\n\nSkipped anyone needing the "' + empties.join('" or "') +
+      '" wording -- that row on the Templates tab is still blank.';
+  }
   if (gaps.length) {
-    message += '\n\nSkipped anyone needing a "' + gaps.join('" or "') + '" template -- no such row on the Templates tab.';
+    message += '\n\nSkipped anyone needing a "' + gaps.join('" or "') +
+      '" template -- no such row on the Templates tab.';
   }
   return { message: message };
 }
@@ -1871,7 +1872,14 @@ function checkForProblems() {
 
   // Templates
   var keys = {};
-  readTab(TEMPLATES).forEach(function (r) { keys[str(r.Group)] = true; });
+  readTab(TEMPLATES).forEach(function (r) {
+    var key = str(r.Group);
+    keys[key] = true;
+    if (key && !str(r.Body)) {
+      problems.push(TEMPLATES + ' row ' + r._row + ': the "' + key +
+        '" email has no wording yet, so nothing can be sent to them.');
+    }
+  });
   TEMPLATE_KEYS.forEach(function (key) {
     if (!keys[key]) problems.push(TEMPLATES + ': no "' + key + '" row. Run "Set up / repair sheet".');
   });
