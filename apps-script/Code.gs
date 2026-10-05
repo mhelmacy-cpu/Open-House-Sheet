@@ -118,8 +118,19 @@ var TEMPLATE_KEYS = GROUPS.concat(['Combined']);
 // Edit it on the tab, not here -- the tab is what the drafts are built from.
 var TEMPLATE_SEED = {
   Parent: {
-    subject: 'Open House - can you help greet prospective parents?',
-    body: "Hi {{firstname}},\n\nWe're hosting our Open House for prospective families, and we're hoping you can take part: greeting visitors as they arrive and chatting with prospective parents about your own experience of the school.\n\nDate:\nTime:\nWhere to meet:\n\nIt's an informal role - welcoming people in, and answering the questions prospective parents always want to put to a current one. Working at the Open House from your family: {{children}}.\n\nCould you let me know whether you're able to join us?\n\nThank you,\n{{sender}}"
+    subject: 'Respond by October 7th - LS/MS Open House',
+    body: "Dear {{firstname}},\n\n" +
+      "LREI's Lower and Middle School Open House will take place on Wednesday, October 14th, from 6:30-8pm.\n\n" +
+      "The Admissions Team would appreciate having you join us as a parent representative for the event!\n\n" +
+      "Here are some details:\n\n" +
+      "\u2022 You would be needed from 6:15pm-7:15pm.\n" +
+      "    - The event starts at 6:30pm. Please arrive by 6:15 so we can give you a name tag and chat about the event.\n\n" +
+      "\u2022 We may assign you to a classroom to start, but you should also feel welcome to move around the building as more prospective parents arrive.\n\n" +
+      "\u2022 We will gather prospective families in the LS/MS auditorium for a panel discussion from 7:15-8pm. Please join us, if you are able.\n\n" +
+      "\u2022 If your child is an MS Admissions Ambassador, they will be ready to go at 7:15pm.\n\n" +
+      "Please let me know if you are available to join us for this event by responding to this email no later than Wednesday, October 7th.\n\n" +
+      "We hope to see you there, and as always, thank you! Your help makes such a difference in our admissions efforts.\n\n" +
+      "Warmly,\n{{sender}}"
   },
   Student: {
     subject: 'Open House - your role on the day',

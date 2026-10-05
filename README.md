@@ -274,6 +274,16 @@ Then three buttons:
 Looks each parent up against the Students tab and writes their children's names
 into the *Child(ren)* column. See the Parents tab above.
 
+### Getting new wording into a Templates tab you already have
+
+*Set up / repair sheet* only ever **adds** missing template rows, so it never
+overwrites wording you've edited — and so it won't pull in new built-in wording
+either. Two ways round that:
+
+- Delete just that one row on the Templates tab, then run *Set up / repair
+  sheet*. It re-adds only what's missing, leaving your other rows alone.
+- Or run **Restore the built-in wording**, which rewrites every row.
+
 ### Restore the built-in wording
 
 *Set up / repair sheet* only ever **adds** missing template rows, so it never
