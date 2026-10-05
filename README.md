@@ -274,21 +274,15 @@ Then three buttons:
 Looks each parent up against the Students tab and writes their children's names
 into the *Child(ren)* column. See the Parents tab above.
 
-### Getting new wording into a Templates tab you already have
+### Restore the built-in wording…
 
-*Set up / repair sheet* only ever **adds** missing template rows, so it never
-overwrites wording you've edited — and so it won't pull in new built-in wording
-either. Two ways round that:
+*Set up / repair sheet* only ever **adds** missing template rows. That's what
+stops it overwriting wording you've edited — and it's also why a change to the
+built-in wording won't appear on a Templates tab you already have.
 
-- Delete just that one row on the Templates tab, then run *Set up / repair
-  sheet*. It re-adds only what's missing, leaving your other rows alone.
-- Or run **Restore the built-in wording**, which rewrites every row.
-
-### Restore the built-in wording
-
-*Set up / repair sheet* only ever **adds** missing template rows, so it never
-overwrites wording you've edited. The flip side is that it won't pull in new
-built-in wording either. This command does, and it overwrites — it asks first.
+This is the command that pulls it in. It asks which one — type `Parent`, or
+`all` for every row — and overwrites only what you name, leaving your other
+rows untouched.
 
 ### Assign people to a room…
 

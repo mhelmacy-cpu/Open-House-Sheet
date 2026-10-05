@@ -157,7 +157,7 @@ function onOpen() {
     .createMenu('Open House')
     .addItem('Set up / repair sheet', 'setUpSheet')
     .addItem('Fill in children on the Parents tab', 'fillInChildren')
-    .addItem('Restore the built-in wording', 'restoreTemplates')
+    .addItem('Restore the built-in wording...', 'restoreTemplates')
     .addSeparator()
     .addItem('Send emails...', 'showSendDialog')
     .addSeparator()
@@ -651,11 +651,30 @@ function paintSummary(sheet, start, rows, boldRows) {
  */
 function restoreTemplates() {
   var ui = SpreadsheetApp.getUi();
-  var confirm = ui.alert('Restore the built-in wording?',
-    'Every row on the Templates tab goes back to the wording built into the script. ' +
-    'Anything you have written there yourself will be lost.',
+
+  var answer = ui.prompt('Restore the built-in wording',
+    'Which one? ' + TEMPLATE_KEYS.join(' / ') + '\n\n' +
+    'Or type all for every row. Whatever you restore is overwritten, so wording ' +
+    'you have written yourself on those rows is lost. The rest are left alone.',
     ui.ButtonSet.OK_CANCEL);
-  if (confirm !== ui.Button.OK) return;
+  if (answer.getSelectedButton() !== ui.Button.OK) return;
+
+  var typed = answer.getResponseText().trim();
+  if (!typed) return;
+
+  var wanted;
+  if (typed.toLowerCase() === 'all') {
+    wanted = TEMPLATE_KEYS.slice();
+  } else {
+    wanted = TEMPLATE_KEYS.filter(function (key) {
+      return key.toLowerCase() === typed.toLowerCase() ||
+        key.toLowerCase() + 's' === typed.toLowerCase();
+    });
+    if (!wanted.length) {
+      alert('"' + typed + '" is not one of ' + TEMPLATE_KEYS.join(', ') + ', and is not "all".');
+      return;
+    }
+  }
 
   var sheet = sheetFor(TEMPLATES);
   var subjectColumn = columnOf(TEMPLATES, 'Subject');
@@ -668,19 +687,17 @@ function restoreTemplates() {
   var existing = {};
   readTab(TEMPLATES).forEach(function (r) { existing[str(r.Group)] = r._row; });
 
-  var restored = 0;
-  TEMPLATE_KEYS.forEach(function (key) {
+  wanted.forEach(function (key) {
     if (existing[key]) {
       sheet.getRange(existing[key], subjectColumn).setValue(TEMPLATE_SEED[key].subject);
       sheet.getRange(existing[key], bodyColumn).setValue(TEMPLATE_SEED[key].body);
     } else {
       sheet.appendRow([key, TEMPLATE_SEED[key].subject, TEMPLATE_SEED[key].body]);
     }
-    restored++;
   });
 
   wrap(TEMPLATES, 'Body');
-  alert(restored + ' template(s) restored. Open the Templates tab to fill in your dates and times.');
+  alert('Restored: ' + wanted.join(', ') + '.\n\nOpen the Templates tab to check it.');
 }
 
 /* ------------------------------------------------- children on the Parents tab */
