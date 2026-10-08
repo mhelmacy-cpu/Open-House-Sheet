@@ -58,7 +58,7 @@ The script deliberately does two different things:
 | **Open House emails** (parents, students, musicians, teachers) and **room assignments** | Become **Gmail drafts**. You read each one and press Send yourself. Nothing about them reaches a recipient until you do. |
 | **Task reminders** to your own team | **Send immediately** — that's the point of a reminder, and the optional daily run happens while you're away from the computer. |
 
-## The seven tabs
+## The eight tabs
 
 Each kind of person gets their own tab, so each can carry the columns it
 actually needs.
@@ -202,6 +202,35 @@ Everything from that blank column rightwards belongs to the summary and is
 rewritten whenever setup runs, so don't keep your own notes over there. The rest
 of the script ignores it: each tab's table is taken to end at the first empty
 header cell.
+
+### Panel — the panellists, and the questions
+
+Two blocks side by side on one tab, separated by a single empty column:
+
+```
+     A            B           C       D                 E   F    G                                   H
+1  | First name | Last name | Grade | Notes           |   | #  | Question                          | Notes
+2  | Maren      | Helmacy   | 9     | opens the panel |   | 1  | What made you choose LREI?         |
+3  | Kristen    | Doe       | 4     |                 |   | 2  | What's a normal day like for you?  |
+4  | Alex       | Rivera    | 11    | arrives at 7:15 |   | 3  | What surprised you most about MS?  | save for last
+      └──── panellists ────┘             gap   └──── questions ────┘
+```
+
+The panellists are a normal table. The questions sit to the right, numbered
+1–10 to start with, with the question column wide and wrapped so long ones stay
+readable, and a notes column for things like *ask this first* or *only if
+there's time*. Both blocks grow downward on their own — a twelfth question
+doesn't disturb the panellists, and vice versa.
+
+**Column E stays empty, and that's load-bearing.** A table is taken to end at
+its first blank header, so that gap is what makes the script treat A–D as the
+Panel table and ignore the questions entirely: they're never reordered,
+renamed or cleared. If a panellist column is ever added, the whole questions
+block shifts right intact rather than being stranded or duplicated — it's found
+by its `#` header, not by a fixed position.
+
+*Check for problems* flags a panellist who isn't on the Students tab, or whose
+grade there disagrees, which catches a mistyped name before the night itself.
 
 ### Templates — the wording
 

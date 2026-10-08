@@ -23,6 +23,7 @@
 var TEAM = 'Team';
 var TASKS = 'Tasks';
 var ROOMS = 'Rooms';
+var PANEL = 'Panel';
 var TEMPLATES = 'Templates';
 var STUDENTS = 'Students';
 var PARENTS = 'Parents';
@@ -109,6 +110,14 @@ var STATUSES = ['Not started', 'In progress', 'Blocked', 'Done'];
 var TEAM_HEADERS = [NAME, 'Email', 'Role'];
 var TASK_HEADERS = ['Task', 'Details', 'Owner', 'Due date', 'Status', 'Last reminded'];
 var ROOM_HEADERS = ['Room', 'Location', 'Activity', 'Teachers', 'Students', 'Notes'];
+
+// The Panel tab holds two blocks side by side: the panellists as a normal
+// table in column A onwards, then one empty column, then the questions. That
+// empty column is load-bearing -- a table is taken to end at its first blank
+// header, so it is what keeps the questions out of the script's reach: they
+// are never reordered, renamed or cleared.
+var PANEL_HEADERS = [FIRST, LAST, 'Grade', 'Notes'];
+var QUESTION_HEADERS = ['#', 'Question', 'Notes'];
 var TEMPLATE_HEADERS = ['Group', 'Subject', 'Body'];
 
 // "Combined" is the wording used when one email goes to more than one group.
@@ -237,6 +246,10 @@ function setUpSheet() {
       ['101', 'First floor', 'Science projects', 'Pat Chen', 'Sam Doe', 'Example row - delete me']
     ]);
   }
+
+  var panel = tab(ss, PANEL, PANEL_HEADERS);
+  widths(PANEL, [[FIRST, 140], [LAST, 140], ['Grade', 70], ['Notes', 220]]);
+  buildPanelQuestions(panel);
 
   var templates = tab(ss, TEMPLATES, TEMPLATE_HEADERS);
   var have = {};
@@ -477,6 +490,63 @@ function numberFormat(sheetName, header, format) {
   if (!column) return;
   var sheet = sheetFor(sheetName);
   sheet.getRange(2, column, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat(format);
+}
+
+/* ------------------------------------------------------- the panel questions */
+
+/**
+ * Writes the questions block's header beside the panellists, leaving one empty
+ * column between them. Only the header is ever written, so questions already
+ * typed in are never touched; on a first run the numbers 1-10 are filled in to
+ * give the list some shape.
+ */
+function buildPanelQuestions(sheet) {
+  var start = questionsStart(sheet);
+  var needed = start + QUESTION_HEADERS.length - 1;
+  if (sheet.getMaxColumns() < needed) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), needed - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, start, 1, QUESTION_HEADERS.length).setValues([QUESTION_HEADERS])
+    .setFontWeight('bold').setBackground(HEADER_FILL).setFontColor(HEADER_TEXT);
+
+  sheet.setColumnWidth(start - 1, 30);        // the gap
+  sheet.setColumnWidth(start, 40);            // #
+  sheet.setColumnWidth(start + 1, 420);       // Question
+  sheet.setColumnWidth(start + 2, 200);       // Notes
+
+  var rows = Math.max(sheet.getMaxRows() - 1, 1);
+  sheet.getRange(2, start + 1, rows, 1).setWrap(true);
+  sheet.getRange(2, start, rows, 1).setHorizontalAlignment('center');
+
+  // Number the list on a first run, when nothing has been written yet.
+  var depth = Math.min(10, rows);
+  var already = sheet.getRange(2, start, depth, 2).getValues().some(function (row) {
+    return str(row[0]) !== '' || str(row[1]) !== '';
+  });
+  if (!already) {
+    var numbers = [];
+    for (var i = 1; i <= depth; i++) numbers.push([i]);
+    sheet.getRange(2, start, depth, 1).setValues(numbers);
+  }
+}
+
+/**
+ * Which column the questions start in. An existing block is found by its "#"
+ * header rather than assumed, so adding a panellist column -- which shifts the
+ * block right -- does not strand it and grow a second one.
+ */
+function questionsStart(sheet) {
+  var width = tableWidth(sheet);
+  var last = sheet.getLastColumn();
+
+  if (last > width) {
+    var headers = sheet.getRange(1, 1, 1, last).getValues()[0];
+    for (var i = width; i < headers.length; i++) {
+      if (String(headers[i]).trim() === QUESTION_HEADERS[0]) return i + 1;
+    }
+  }
+  return width + 2;
 }
 
 /* --------------------------------------------------------- the summaries */
@@ -1991,6 +2061,29 @@ function checkForProblems() {
       if (placed[key] && placed[key] !== room) problems.push(at + '"' + name + '" is also in room ' + placed[key] + '.');
       else placed[key] = room;
     });
+  });
+
+  // Panel: a panellist should be a student who is actually working.
+  var gradeByStudent = {};
+  readTab(STUDENTS).forEach(function (r) {
+    var who = personName(r);
+    if (who) gradeByStudent[who.toLowerCase()] = str(r.Grade);
+  });
+  readTab(PANEL).forEach(function (r) {
+    var at = PANEL + ' row ' + r._row + ': ';
+    var who = personName(r);
+    if (!who) { problems.push(at + 'no name.'); return; }
+
+    if (!(who.toLowerCase() in gradeByStudent)) {
+      problems.push(at + '"' + who + '" is not on the ' + STUDENTS + ' tab.');
+      return;
+    }
+    var onStudents = gradeByStudent[who.toLowerCase()];
+    var here = str(r.Grade);
+    if (here && onStudents && here !== onStudents) {
+      problems.push(at + '"' + who + '" is grade ' + here + ' here but grade ' +
+        onStudents + ' on the ' + STUDENTS + ' tab.');
+    }
   });
 
   // Templates
