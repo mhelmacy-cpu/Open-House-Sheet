@@ -65,8 +65,8 @@ actually needs.
 
 ### Students — the master sheet
 
-| First name | Last name | Email | Grade | Borough | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Notes | Email confirmation sent | Confirmed attending | Parent confirmation sent |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| First name | Last name | Email | Grade | Borough | Parent 1 name | Parent 2 name | Parent 1 email | Parent 2 email | Assigned to a room? | Room | Notes | Email confirmation sent | Confirmed attending | Parent confirmation sent |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 Every student who is working. The name is split in two so the tab sorts by
 surname; the parent name columns stay single. The two stamped columns track different things:
@@ -79,8 +79,8 @@ Rooms tab — reads either shape, so the two kinds of tab mix freely.
 
 ### Parents — the parents who are working
 
-| Name | Email | Child(ren) | Division | Borough | Notes | Email confirmation sent | Confirmed attending |
-|---|---|---|---|---|---|---|---|
+| Name | Email | Child(ren) | Division | Borough | Assigned to a room? | Room | Notes | Email confirmation sent | Confirmed attending |
+|---|---|---|---|---|---|---|---|---|---|
 
 *Division* is a dropdown: **LS**, **MS**, or **LS/MS** for a parent with
 children in both. *Email confirmation sent* stamps itself when a draft is
@@ -112,6 +112,17 @@ get confused. It writes plain text rather than a formula, so it survives column
 edits and you can still type into it by hand — anything it can't match is left
 alone and reported. That `(9th)` is also what the grade count reads, so the
 format matters.
+
+#### Assigned to a room? / Room
+
+These two **fill themselves in from the Rooms tab**, which stays the single
+place an assignment is actually made — either by typing into it or with
+*Assign people to a room*. Put someone in a room there and their two columns
+here say `Yes` and name it.
+
+Where the Rooms tab has nothing for someone, their cells are **left alone** — so
+a `No` you type yourself for a parent who roams the building, or a room you
+write in by hand, is never wiped. *Assigned to a room?* is a Yes / No dropdown.
 
 #### Borough
 
@@ -168,8 +179,11 @@ and gets reminded about. *Last reminded* is stamped automatically.
 
 ### Rooms — the classrooms in use
 
-| Room | Location | Activity | Teachers | Students | Notes |
-|---|---|---|---|---|---|
+| Room | Location | Activity | Teachers | Students | Parents | Notes |
+|---|---|---|---|---|---|---|
+
+Parents get a column of their own here, since the parent email promises them a
+classroom to start in.
 
 Use **Assign people to a room…** rather than typing into this tab — see below.
 You still can type, though: several names in the Teachers or Students cell
@@ -340,10 +354,18 @@ students who belong in it, and their names are written into that room's row on
 the Rooms tab — the same cells you could type into by hand, so everything that
 reads the Rooms tab keeps working.
 
-It opens with each room's current people already ticked, shows each student's
-grade next to their name, has a filter box for long lists, and flags anyone
-already ticked in a different room, so you spot a double-booking as you make it
-rather than at *Check for problems*.
+It opens with each room's current people already ticked, in three columns —
+teachers, students and parents — shows each student's grade and each parent's
+children next to their name, has a filter box on the longer lists, and flags
+anyone already ticked in a different room, so you spot a double-booking as you
+make it rather than at *Check for problems*. Saving also updates the two room
+columns on the Students and Parents tabs.
+
+### Update the room columns
+
+Refills *Assigned to a room?* and *Room* on the Students and Parents tabs from
+the Rooms tab. It runs by itself after any edit to the Rooms tab and whenever
+the room picker saves, so this is only for forcing it.
 
 ### Email room assignments to teachers
 

@@ -52,6 +52,12 @@ var LAST = 'Last name';
 
 var DIVISIONS = ['LS', 'MS', 'LS/MS'];
 
+// The Rooms tab stays the one place an assignment is made. These two columns
+// report it on the people tabs, and are filled in from there.
+var ASSIGNED = 'Assigned to a room?';
+var ROOM = 'Room';
+var ASSIGNED_VALUES = ['Yes', 'No'];
+
 // Where a family travels in from. Not strictly boroughs -- the last three are
 // not -- but it is one question with one answer, so it is one column.
 // The rows of the grade summary, and the suffix written beside each child's
@@ -74,13 +80,14 @@ var ATTENDING_VALUES = ['Yes', 'No', 'Maybe'];
 var GROUP_TABS = {
   Parent: {
     tab: PARENTS,
-    headers: [NAME, 'Email', 'Child(ren)', 'Division', 'Borough', 'Notes', SENT, ATTENDING]
+    headers: [NAME, 'Email', 'Child(ren)', 'Division', 'Borough',
+      ASSIGNED, ROOM, 'Notes', SENT, ATTENDING]
   },
   Student: {
     tab: STUDENTS,
     headers: [FIRST, LAST, 'Email', 'Grade', 'Borough',
       'Parent 1 name', 'Parent 2 name', 'Parent 1 email', 'Parent 2 email',
-      'Notes', SENT, ATTENDING, PARENT_SENT]
+      ASSIGNED, ROOM, 'Notes', SENT, ATTENDING, PARENT_SENT]
   },
   Musician: {
     tab: 'Musicians',
@@ -109,7 +116,7 @@ var STATUSES = ['Not started', 'In progress', 'Blocked', 'Done'];
 
 var TEAM_HEADERS = [NAME, 'Email', 'Role'];
 var TASK_HEADERS = ['Task', 'Details', 'Owner', 'Due date', 'Status', 'Last reminded'];
-var ROOM_HEADERS = ['Room', 'Location', 'Activity', 'Teachers', 'Students', 'Notes'];
+var ROOM_HEADERS = ['Room', 'Location', 'Activity', 'Teachers', 'Students', 'Parents', 'Notes'];
 
 // The Panel tab holds two blocks side by side: the panellists as a normal
 // table in column A onwards, then one empty column, then the questions. That
@@ -148,6 +155,7 @@ function onOpen() {
     .addItem('Send emails...', 'showSendDialog')
     .addSeparator()
     .addItem('Assign people to a room...', 'showRoomDialog')
+    .addItem('Update the room columns', 'syncRoomColumns')
     .addItem('Email room assignments to teachers', 'emailRoomAssignments')
     .addItem('Update who has been emailed', 'updateSentColumn')
     .addSeparator()
@@ -169,9 +177,11 @@ function setUpSheet() {
   var studentsSplit = splitFullNames(STUDENTS);
   widths(STUDENTS, [[FIRST, 140], [LAST, 140], ['Email', 230], ['Grade', 70],
     ['Borough', 135], ['Parent 1 name', 170], ['Parent 2 name', 170],
-    ['Parent 1 email', 230], ['Parent 2 email', 230], ['Notes', 220]]);
+    ['Parent 1 email', 230], ['Parent 2 email', 230],
+    [ASSIGNED, 150], [ROOM, 90], ['Notes', 220]]);
   boroughDropdown(STUDENTS);
   attendingDropdown(STUDENTS);
+  assignedDropdown(STUDENTS);
   if (students.getLastRow() < 2) {
     students.getRange(2, 1, 2, 9).setValues([
       ['Sam', 'Doe', 'sam.doe@example.com', '7', 'B - Brooklyn',
@@ -183,9 +193,11 @@ function setUpSheet() {
 
   var parents = tab(ss, GROUP_TABS.Parent.tab, GROUP_TABS.Parent.headers);
   widths(PARENTS, [[NAME, 170], ['Email', 230], ['Child(ren)', 240],
-    ['Division', 95], ['Borough', 135], ['Notes', 220]]);
+    ['Division', 95], ['Borough', 135], [ASSIGNED, 150], [ROOM, 90],
+    ['Notes', 220]]);
   dropdown(PARENTS, 'Division', DIVISIONS, 'Lower School, Middle School, or both');
   boroughDropdown(PARENTS);
+  assignedDropdown(PARENTS);
   attendingDropdown(PARENTS);
   if (parents.getLastRow() < 2) {
     parents.getRange(2, 1, 2, 2).setValues([
@@ -238,12 +250,14 @@ function setUpSheet() {
 
   var rooms = tab(ss, ROOMS, ROOM_HEADERS);
   widths(ROOMS, [['Room', 120], ['Location', 160], ['Activity', 200],
-    ['Teachers', 240], ['Students', 300], ['Notes', 220]]);
+    ['Teachers', 240], ['Students', 300], ['Parents', 240], ['Notes', 220]]);
   wrap(ROOMS, 'Teachers');
   wrap(ROOMS, 'Students');
+  wrap(ROOMS, 'Parents');
   if (rooms.getLastRow() < 2) {
-    rooms.getRange(2, 1, 1, 6).setValues([
-      ['101', 'First floor', 'Science projects', 'Pat Chen', 'Sam Doe', 'Example row - delete me']
+    rooms.getRange(2, 1, 1, 7).setValues([
+      ['101', 'First floor', 'Science projects', 'Pat Chen', 'Sam Doe', 'Jane Doe',
+        'Example row - delete me']
     ]);
   }
 
@@ -260,6 +274,7 @@ function setUpSheet() {
   widths(TEMPLATES, [['Group', 120], ['Subject', 300], ['Body', 520]]);
   wrap(TEMPLATES, 'Body');
 
+  syncRoomColumns(true);
   buildParentSummary();
   buildStudentSummary();
 
@@ -468,6 +483,11 @@ function attendingDropdown(sheetName) {
 
 function boroughDropdown(sheetName) {
   dropdown(sheetName, 'Borough', BOROUGHS, 'Where they travel in from');
+}
+
+function assignedDropdown(sheetName) {
+  dropdown(sheetName, ASSIGNED, ASSIGNED_VALUES,
+    'Filled in from the Rooms tab. Set it to No yourself for someone who roams.');
 }
 
 function widths(sheetName, pairs) {
@@ -819,6 +839,13 @@ function onEdit(e) {
     if (!e || !e.range) return;
     var sheet = e.range.getSheet();
     var name = sheet.getName();
+
+    // Editing the Rooms tab by hand changes who is in which room.
+    if (name === ROOMS) {
+      if (e.range.getLastRow() >= 2) syncRoomColumns(true);
+      return;
+    }
+
     if (name !== STUDENTS && name !== PARENTS) return;
     if (e.range.getLastRow() < 2) return;
 
@@ -835,6 +862,7 @@ function onEdit(e) {
     if (!touched) return;
 
     fillInChildren(true);
+    syncRoomColumns(true);
   } catch (err) {
     // An edit must never fail because of this.
   }
@@ -1337,8 +1365,8 @@ function showRoomDialog() {
     alert('The Rooms tab has no rooms yet. Add a room name in the Room column first.');
     return;
   }
-  if (!data.students.length && !data.teachers.length) {
-    alert('There is nobody to assign yet. Add people to the Students and Teachers tabs first.');
+  if (!data.students.length && !data.teachers.length && !data.parents.length) {
+    alert('There is nobody to assign yet. Add people to the Students, Teachers or Parents tabs first.');
     return;
   }
 
@@ -1368,8 +1396,11 @@ function showRoomDialog() {
     '<div class="cols">',
     '<div class="col"><h3>Teachers</h3><div class="list" id="tlist"></div><div class="count" id="tcount"></div></div>',
     '<div class="col"><h3>Students</h3>',
-    '<input type="search" id="find" placeholder="Filter students" autocomplete="off">',
+    '<input type="search" id="find" placeholder="Filter" autocomplete="off">',
     '<div class="list" id="slist" style="margin-top:6px"></div><div class="count" id="scount"></div></div>',
+    '<div class="col"><h3>Parents</h3>',
+    '<input type="search" id="findp" placeholder="Filter" autocomplete="off">',
+    '<div class="list" id="plist" style="margin-top:6px"></div><div class="count" id="pcount"></div></div>',
     '</div>',
     '<div class="btns">',
     '<button id="save" type="button">Save to this room</button>',
@@ -1383,10 +1414,11 @@ function showRoomDialog() {
     'function roomNow(){return sel("room").value;}',
     // Start from what each room already holds, so nothing is lost on save.
     'DATA.rooms.forEach(function(r){',
-    '  var t={},s={};',
+    '  var t={},s={},p={};',
     '  r.teachers.forEach(function(n){t[n]=true;});',
     '  r.students.forEach(function(n){s[n]=true;});',
-    '  picked[r.room]={teachers:t,students:s};',
+    '  (r.parents||[]).forEach(function(n){p[n]=true;});',
+    '  picked[r.room]={teachers:t,students:s,parents:p};',
     '});',
     'DATA.rooms.forEach(function(r){',
     '  var o=document.createElement("option");',
@@ -1438,11 +1470,13 @@ function showRoomDialog() {
     'function render(){',
     '  draw("teachers",DATA.teachers,sel("tlist"),sel("tcount"),"");',
     '  draw("students",DATA.students,sel("slist"),sel("scount"),sel("find").value.trim().toLowerCase());',
+    '  draw("parents",DATA.parents,sel("plist"),sel("pcount"),sel("findp").value.trim().toLowerCase());',
     '}',
     'sel("room").addEventListener("change",function(){ sel("status").textContent=""; render(); });',
     'sel("find").addEventListener("input",render);',
+    'sel("findp").addEventListener("input",render);',
     'sel("clear").addEventListener("click",function(){',
-    '  picked[roomNow()]={teachers:{},students:{}}; render();',
+    '  picked[roomNow()]={teachers:{},students:{},parents:{}}; render();',
     '});',
     'sel("save").addEventListener("click",function(){',
     '  var room=roomNow();',
@@ -1454,14 +1488,15 @@ function showRoomDialog() {
     '    sel("save").disabled=false; sel("status").textContent="Error: "+e.message;',
     '  }).saveRoomAssignment({ room: room,',
     '    teachers: Object.keys(picked[room].teachers),',
-    '    students: Object.keys(picked[room].students) });',
+    '    students: Object.keys(picked[room].students),',
+    '    parents: Object.keys(picked[room].parents) });',
     '});',
     'render();',
     '<\/script>'
   ].join('');
 
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(620).setHeight(560), 'Assign people to a room');
+    HtmlService.createHtmlOutput(html).setWidth(780).setHeight(580), 'Assign people to a room');
 }
 
 /** Rooms, plus everyone who could be put in one. */
@@ -1472,7 +1507,8 @@ function roomDialogData() {
         room: str(r.Room),
         location: str(r.Location),
         teachers: namesIn(r.Teachers),
-        students: namesIn(r.Students)
+        students: namesIn(r.Students),
+        parents: namesIn(r.Parents)
       };
     }),
     teachers: readTab(GROUP_TABS.Teacher.tab).filter(function (r) { return personName(r); })
@@ -1486,6 +1522,10 @@ function roomDialogData() {
     students: readTab(STUDENTS).filter(function (r) { return personName(r); })
       .map(function (r) {
         return { name: personName(r), detail: str(r.Grade) ? 'Grade ' + str(r.Grade) : '' };
+      }),
+    parents: readTab(PARENTS).filter(function (r) { return personName(r); })
+      .map(function (r) {
+        return { name: personName(r), detail: str(r['Child(ren)']) };
       })
   };
 }
@@ -1504,19 +1544,72 @@ function saveRoomAssignment(payload) {
   var sheet = sheetFor(ROOMS);
   var teacherColumn = columnOf(ROOMS, 'Teachers');
   var studentColumn = columnOf(ROOMS, 'Students');
+  var parentColumn = columnOf(ROOMS, 'Parents');
   if (!teacherColumn || !studentColumn) {
     return 'The Rooms tab is missing its Teachers or Students column. Run "Set up / repair sheet".';
   }
 
   var teachers = (payload.teachers || []).map(str).filter(String);
   var students = (payload.students || []).map(str).filter(String);
+  var parents = (payload.parents || []).map(str).filter(String);
   sheet.getRange(match._row, teacherColumn).setValue(teachers.join(', '));
   sheet.getRange(match._row, studentColumn).setValue(students.join(', '));
+  if (parentColumn) sheet.getRange(match._row, parentColumn).setValue(parents.join(', '));
+
+  // Keep the two columns on the people tabs in step with what was just saved.
+  syncRoomColumns(true);
 
   return 'Room ' + room + ' saved: ' +
-    teachers.length + ' teacher' + (teachers.length === 1 ? '' : 's') + ' and ' +
-    students.length + ' student' + (students.length === 1 ? '' : 's') + '.' +
-    '\n\nPick another room to carry on, or close this window.';
+    teachers.length + ' teacher' + (teachers.length === 1 ? '' : 's') + ', ' +
+    students.length + ' student' + (students.length === 1 ? '' : 's') + ' and ' +
+    parents.length + ' parent' + (parents.length === 1 ? '' : 's') + '.' +
+    '\n\nThe Students and Parents tabs now show their room too. ' +
+    'Pick another room to carry on, or close this window.';
+}
+
+/* ----------------------------------------- the room columns on the people tabs */
+
+/**
+ * Copies each person's room from the Rooms tab onto the Students and Parents
+ * tabs. The Rooms tab is the one place an assignment is made, so these two
+ * columns only ever report it.
+ *
+ * Where the Rooms tab has nothing for someone, their cells are left exactly as
+ * they are: a "No" you typed for somebody who roams, or a room you wrote in by
+ * hand, is never wiped by this.
+ */
+function syncRoomColumns(quiet) {
+  var rooms = roomsByPerson();
+  var filled = 0;
+
+  [STUDENTS, PARENTS].forEach(function (name) {
+    var assignedColumn = columnOf(name, ASSIGNED);
+    var roomColumn = columnOf(name, ROOM);
+    if (!assignedColumn || !roomColumn) return;
+
+    var sheet = sheetFor(name);
+    readTab(name).forEach(function (r) {
+      var who = personName(r);
+      if (!who) return;
+
+      var room = rooms[who.toLowerCase()];
+      if (!room) return;
+
+      // Only write what has actually changed, so this can run after any edit
+      // without churning the sheet.
+      if (str(r[ASSIGNED]) !== 'Yes') sheet.getRange(r._row, assignedColumn).setValue('Yes');
+      if (str(r[ROOM]) !== room) sheet.getRange(r._row, roomColumn).setValue(room);
+      filled++;
+    });
+  });
+
+  if (quiet) return filled;
+
+  alert(filled + ' row(s) on the Students and Parents tabs now show their room.\n\n' +
+    'Rooms are set on the Rooms tab, or with "Assign people to a room". ' +
+    'Anyone the Rooms tab does not mention was left alone, so a "No" you typed ' +
+    'yourself stays put.');
+  return filled;
 }
 
 /* ------------------------------------------------------- room assignments */
@@ -1527,10 +1620,11 @@ function roomsByPerson() {
   readTab(ROOMS).forEach(function (r) {
     var room = str(r.Room);
     if (!room) return;
-    namesIn(r.Teachers).concat(namesIn(r.Students)).forEach(function (n) {
-      var key = n.toLowerCase();
-      map[key] = map[key] ? map[key] + ', ' + room : room;
-    });
+    namesIn(r.Teachers).concat(namesIn(r.Students)).concat(namesIn(r.Parents))
+      .forEach(function (n) {
+        var key = n.toLowerCase();
+        map[key] = map[key] ? map[key] + ', ' + room : room;
+      });
   });
   return map;
 }
@@ -2040,6 +2134,33 @@ function checkForProblems() {
     if (r['Due date'] && !(r['Due date'] instanceof Date)) problems.push(at + 'the due date is text, not a date. Retype it as a date.');
   });
 
+  // The two room columns against the Rooms tab.
+  var roomNameSet = {};
+  readTab(ROOMS).forEach(function (r) {
+    var name = str(r.Room);
+    if (name) roomNameSet[name.toLowerCase()] = true;
+  });
+  [STUDENTS, PARENTS].forEach(function (name) {
+    readTab(name).forEach(function (r) {
+      var at = name + ' row ' + r._row + ': ';
+      var assigned = str(r[ASSIGNED]);
+      var room = str(r[ROOM]);
+
+      if (assigned && ASSIGNED_VALUES.indexOf(assigned) === -1) {
+        problems.push(at + '"' + assigned + '" is not Yes or No.');
+      }
+      if (assigned === 'Yes' && !room) {
+        problems.push(at + 'says assigned to a room but no room is named.');
+      }
+      room.split(',').map(function (one) { return one.trim(); }).filter(String)
+        .forEach(function (one) {
+          if (!roomNameSet[one.toLowerCase()]) {
+            problems.push(at + 'room "' + one + '" is not on the ' + ROOMS + ' tab.');
+          }
+        });
+    });
+  });
+
   // Rooms, and anyone booked into two at once.
   var placed = {};
   var roomNames = {};
@@ -2055,12 +2176,13 @@ function checkForProblems() {
     }
     if (!namesIn(r.Teachers).length) problems.push(at + 'room ' + room + ' has no teacher.');
 
-    namesIn(r.Teachers).concat(namesIn(r.Students)).forEach(function (name) {
-      var key = name.toLowerCase();
-      if (!emails[key]) problems.push(at + '"' + name + '" is not on any group tab or the Team tab.');
-      if (placed[key] && placed[key] !== room) problems.push(at + '"' + name + '" is also in room ' + placed[key] + '.');
-      else placed[key] = room;
-    });
+    namesIn(r.Teachers).concat(namesIn(r.Students)).concat(namesIn(r.Parents))
+      .forEach(function (name) {
+        var key = name.toLowerCase();
+        if (!emails[key]) problems.push(at + '"' + name + '" is not on any group tab or the Team tab.');
+        if (placed[key] && placed[key] !== room) problems.push(at + '"' + name + '" is also in room ' + placed[key] + '.');
+        else placed[key] = room;
+      });
   });
 
   // Panel: a panellist should be a student who is actually working.
